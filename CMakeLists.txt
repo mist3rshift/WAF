@@ -5,10 +5,13 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 include_directories(include)
 
-add_executable(server
-    src/server.c
+add_executable(WAF
+    src/main.c
+    src/proxy.c
+    src/backend_connection.c
+    src/client_handler.c
     lib/log.c
 
 )
 
-target_compile_definitions(server PRIVATE LOG_USE_COLOR)
+target_compile_definitions(WAF PRIVATE LOG_USE_COLOR)
