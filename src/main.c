@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include "../inc/proxy.h"
 
 int main(int argc, char* argv[]){
@@ -7,6 +8,10 @@ int main(int argc, char* argv[]){
         printf("Usage : ./server <port>\n");
         exit(EXIT_FAILURE);
     }
+
+    // Intercepter Ctrl+C (SIGINT)
+    signal(SIGINT, stop_waf_handler);
+
     int port = atoi(argv[1]);
     start_proxy(port);
     return 0;

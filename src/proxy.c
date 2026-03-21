@@ -5,11 +5,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #include "../lib/log.h"
 #include "../inc/proxy.h"
 #include "../inc/config.h"
 #include "../inc/client_handler.h"
+int proxy_socket = -1; // global socket for signal handler access
 
 int initialise_proxy_socket(int port){
     //AF_INET: Specifies IPv4.
@@ -43,11 +45,11 @@ int initialise_proxy_socket(int port){
 }
 
 void start_proxy(int port) {
-    int proxy_socket = initialise_proxy_socket(port);
+    proxy_socket = initialise_proxy_socket(port);
     struct sockaddr_in client_addr;
     socklen_t addr_size = sizeof(client_addr);
-
-    log_info("start_proxy : WAF à l'écoute sur le port %d...\n", port);
+    pthread_t thread;
+    log_info("start_proxy : WAF listening on port %d...\n", port);
 
     while(1) {
         
@@ -59,9 +61,14 @@ void start_proxy(int port) {
         }
 
         // OPTION A : Passage direct (Single-thread pour tester le MVP)
-        handle_client(client_sock,proxy_socket); 
+        //handle_client(client_sock); 
         
         // OPTION B : Passage au thread (Plus tard)
+        ClientArgs *client_args = malloc(sizeof(ClientArgs));
+        client_args->client_fd = client_sock;
+        client_args->client_addr = client_addr;
+        client_args->thread_id = 0; // À remplacer par un ID unique si nécessaire
+        pthread_create(&thread,0, handle_client_thread, (void*)client_args);
         // pthread_create(..., handle_client, (void*)&client_sock);
     }
 }
@@ -72,16 +79,31 @@ int relay_stream(int socket_recv, int socket_to_write) {
 
     // On boucle tant que le serveur envoie des données
     while ((bytes_read = recv(socket_recv, buffer, sizeof(buffer), 0)) > 0) {
-        log_debug("relay_stream : reçu %d octets\n : message : %s", bytes_read,buffer);
+        log_debug("relay_stream : received %d bytes\n : message : %s", bytes_read,buffer);
         // On renvoie exactement ce qu'on a reçu au client
         if (send(socket_to_write, buffer, bytes_read, 0) < 0) {
-            log_error("relay_stream : échec de l'envoi au client");
+            log_error("relay_stream : error sending data to client");
             break;
         }
     }
 
     if (bytes_read < 0) {
-        log_error("relay_stream : erreur de lecture sur le serveur web");
+        log_error("relay_stream : error during recv from web server");
     }
     return 0;
+}
+
+void stop_waf_handler(int signum) {
+    log_info("\nStopping WAF (Signal %d)...", signum);
+    
+    if (proxy_socket >= 0) {
+        close(proxy_socket);
+        log_info("Main proxy socket closed.");
+    }
+
+    // Si tu as un mutex pour les logs, détruis-le ici
+    // pthread_mutex_destroy(&log_mutex);
+
+    log_info("WAF stopped properly. Goodbye!");
+    exit(0);
 }
