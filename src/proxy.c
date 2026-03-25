@@ -60,16 +60,15 @@ void start_proxy(int port) {
             continue; // waiting for customer
         }
 
-        // OPTION A : Passage direct (Single-thread pour tester le MVP)
+        // OPTION A : Direct connection (Single-thread for the MVP)
         //handle_client(client_sock); 
         
-        // OPTION B : Passage au thread (Plus tard)
-        ClientArgs *client_args = malloc(sizeof(ClientArgs));
+        // OPTION B : Use threads to handle multiple clients concurrently
+        ClientArgs *client_args = calloc(1, sizeof(ClientArgs));
         client_args->client_fd = client_sock;
         client_args->client_addr = client_addr;
-        client_args->thread_id = 0; // À remplacer par un ID unique si nécessaire
+        client_args->thread_id = 0; // will be set in the thread function
         pthread_create(&thread,0, handle_client_thread, (void*)client_args);
-        // pthread_create(..., handle_client, (void*)&client_sock);
     }
 }
 
@@ -77,10 +76,10 @@ int relay_stream(int socket_recv, int socket_to_write) {
     char buffer[BUFFER_SIZE];
     int bytes_read;
 
-    // On boucle tant que le serveur envoie des données
+    //loop to relay data from web server to client until the connection is closed
     while ((bytes_read = recv(socket_recv, buffer, sizeof(buffer), 0)) > 0) {
         log_debug("relay_stream : received %d bytes\n : message : %s", bytes_read,buffer);
-        // On renvoie exactement ce qu'on a reçu au client
+        // Relay the data to the client
         if (send(socket_to_write, buffer, bytes_read, 0) < 0) {
             log_error("relay_stream : error sending data to client");
             break;
@@ -101,7 +100,7 @@ void stop_waf_handler(int signum) {
         log_info("Main proxy socket closed.");
     }
 
-    // Si tu as un mutex pour les logs, détruis-le ici
+    // Mutex cleanup if needed
     // pthread_mutex_destroy(&log_mutex);
 
     log_info("WAF stopped properly. Goodbye!");

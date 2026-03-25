@@ -5,7 +5,7 @@
 typedef struct {
     int client_fd;
     struct sockaddr_in client_addr;
-    unsigned long thread_id;  // Pour les logs
+    unsigned long thread_id;  // For logging
 } ClientArgs;
 
 void handle_client(int client_sock);

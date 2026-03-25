@@ -9,7 +9,7 @@ int main(int argc, char* argv[]){
         exit(EXIT_FAILURE);
     }
 
-    // Intercepter Ctrl+C (SIGINT)
+    // Intecept Ctrl+C (SIGINT)
     signal(SIGINT, stop_waf_handler);
 
     int port = atoi(argv[1]);

@@ -16,18 +16,17 @@
 void handle_client(int client_sock){
     char buffer[BUFFER_SIZE]; 
 
-    // 3. Connexion au serveur web (Upstream)
+    // 3. Connexion to web server  (Upstream)
     int web_server_sock = initialize_server_web_connection();
     if (web_server_sock < 0) {
-        // Optionnel : Envoyer une erreur 502 Bad Gateway ici
-        const char *response = "HTTP/1.1 502 OK\r\nContent-Length: 23\r\n\r\nWeb Server unreachable \n";
+        const char *response = "HTTP/1.1 503 OK\r\nContent-Length: 23\r\n\r\nWeb Server unreachable \n";
         send(client_sock, response, strlen(response), 0);
         close(client_sock);
         return;
     }
 
 
-    //Faire boucle si message trop grand
+    //Loop if message to long 
     int bytes_read = recv(client_sock, buffer, sizeof(buffer) - 1, 0);
     if (bytes_read <= 0) {
         log_error("handle_client : no bytes received \n");
@@ -46,9 +45,6 @@ void handle_client(int client_sock){
     relay_stream(web_server_sock,client_sock);
 
     
-    //Default response
-    //const char *response = "HTTP/1.1 200 OK\r\nContent-Length: 12\r\n\r\nHello World \n";
-    //send(client_sock, response, strlen(response), 0);
     close(client_sock);
     close(web_server_sock);
 }
@@ -67,11 +63,11 @@ void* handle_client_thread(void *args) {
     char buffer[BUFFER_SIZE]; 
     int web_server_sock = -1; // I,itialize to -1 to indicate no connection yet
 
-    // 3. Connexion au serveur web (Upstream)
+    // 3. Connexion tp web server (Upstream)
     web_server_sock = initialize_server_web_connection();
     if (web_server_sock < 0) {
-        // Optionnel : Envoyer une erreur 502 Bad Gateway ici
-        const char *response = "HTTP/1.1 502 OK\r\nContent-Length: 23\r\n\r\nWeb Server unreachable \n";
+        
+        const char *response = "HTTP/1.1 503 OK\r\nContent-Length: 23\r\n\r\nWeb Server unreachable \n";
         send(client_sock, response, strlen(response), 0);
         cleanup_client_session(client_sock, web_server_sock, client_args);
         log_error("handle_client_thread : failed to connect to web server for thread %lu\n", thread_id);
@@ -79,7 +75,7 @@ void* handle_client_thread(void *args) {
     }
 
 
-    //Faire boucle si message trop grand
+    //Loop if message to long
     int bytes_read = recv(client_sock, buffer, sizeof(buffer) - 1, 0);
     if (bytes_read <= 0) {
         log_error("handle_client : no bytes received \n");
@@ -98,10 +94,7 @@ void* handle_client_thread(void *args) {
     relay_stream(web_server_sock,client_sock);
 
     
-    //Default response
-    //const char *response = "HTTP/1.1 200 OK\r\nContent-Length: 12\r\n\r\nHello World \n";
-    //send(client_sock, response, strlen(response), 0);
-    log_debug("handle_client_thread : closing connection for thread %d\n", thread_id);
+    log_debug("handle_client_thread : closing connection for thread %lu\n", thread_id);
     cleanup_client_session(client_sock, web_server_sock, client_args);
     log_debug("handle_client_thread : thread %d exiting\n", thread_id);
     pthread_exit(NULL);
