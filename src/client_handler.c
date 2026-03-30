@@ -63,7 +63,7 @@ void* handle_client_thread(void *args) {
     char buffer[BUFFER_SIZE]; 
     int web_server_sock = -1; // I,itialize to -1 to indicate no connection yet
 
-    // 3. Connexion tp web server (Upstream)
+    // 3. Connexion to web server (Upstream)
     web_server_sock = initialize_server_web_connection();
     if (web_server_sock < 0) {
         
