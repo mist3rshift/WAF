@@ -21,4 +21,11 @@ add_executable(test_internal_log
     lib/cJSON.c
 )
 
+add_executable(test_parser
+    tests/test_parser.c
+    src/request_parser.c
+    lib/log.c
+    lib/cJSON.c
+)
+
 target_compile_definitions(WAF PRIVATE LOG_USE_COLOR)
