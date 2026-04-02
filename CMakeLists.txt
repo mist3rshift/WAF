@@ -28,4 +28,12 @@ add_executable(test_parser
     lib/cJSON.c
 )
 
+add_executable(test_firewall
+    tests/test_firewall.c
+    src/firewall.c
+    lib/log.c
+    lib/cJSON.c
+    lib/libinjection_sqli.c
+)
+
 target_compile_definitions(WAF PRIVATE LOG_USE_COLOR)
