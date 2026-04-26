@@ -12,6 +12,8 @@
 #include "../lib/log.h"
 #include "../inc/backend_connection.h"
 #include "../inc/proxy.h"
+#include "../inc/firewall.h"
+#include "../inc/request_parser.h"
 
 void handle_client(int client_sock){
     char buffer[BUFFER_SIZE]; 
@@ -33,10 +35,23 @@ void handle_client(int client_sock){
         close(client_sock);
         return;
     }
+
     buffer[bytes_read] = '\0';
 
-    //if(is_malicious(buffer))
+    String src;
+    src.ptr = buffer;
+    src.len = bytes_read;
 
+    Request req;
+
+    parse_request(src, &req);
+
+    if(is_malicious(req.target)) {
+        const char *response = "HTTP/1.1 403 OK\r\nContent-Length: 23\r\n\r\nAccess denied \n";
+        send(client_sock, response, strlen(response), 0);
+        close(client_sock);
+        return;
+    }
     
     //send to web server 
     send(web_server_sock,buffer,sizeof(buffer)-1,0);
@@ -84,7 +99,20 @@ void* handle_client_thread(void *args) {
     }
     buffer[bytes_read] = '\0';
 
-    //if(is_malicious(buffer))
+    String src;
+    src.ptr = buffer;
+    src.len = bytes_read;
+
+    Request req;
+
+    parse_request(src, &req);
+
+    if(is_malicious(req.target)) {
+        const char *response = "HTTP/1.1 403 OK\r\nContent-Length: 23\r\n\r\nAccess denied \n";
+        send(client_sock, response, strlen(response), 0);
+        close(client_sock);
+        return;
+    }
 
     
     //send to web server 
