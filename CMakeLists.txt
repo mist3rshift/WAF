@@ -10,6 +10,8 @@ add_executable(WAF
     src/proxy.c
     src/backend_connection.c
     src/client_handler.c
+    src/request_parser.c
+    src/firewall.c
     lib/log.c
     lib/cJSON.c
 )
@@ -33,7 +35,7 @@ add_executable(test_firewall
     src/firewall.c
     lib/log.c
     lib/cJSON.c
-    lib/libinjection_sqli.c
+
 )
 
 target_compile_definitions(WAF PRIVATE LOG_USE_COLOR)

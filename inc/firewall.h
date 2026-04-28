@@ -1,11 +1,40 @@
-#ifndef REQUEST_PARSER_H
-#define REQUEST_PARSER_H
+#ifndef FIREWALL_H
+#define FIREWALL_H
 
 #include <stdbool.h>
-#include <string.h>
-
 #include "request_parser.h"
 
+typedef struct _rule {
+    char id[16];         // uniq unique (ex: "SQL-001")
+    int type;            // ThreatType (enum)
+    char pattern[128];   // pattern to seach
+    char name[64];       // Nom explicite
+    int score;           // score 
+} rule;
+
+typedef enum {
+    THREAT_NONE = 0,
+    THREAT_SQLI = 1,
+    THREAT_XSS = 2,
+    THREAT_PATH_TRAVERSAL = 3,
+    THREAT_COMMAND_INJECTION = 4,
+    THREAT_INVALID_METHOD = 101,
+    THREAT_INVALID_HEADER = 102,
+    THREAT_MALFORMED = 999
+} ThreatType;
+
 bool is_malicious(String target);
+
+void strip_comments(char* str);
+
+int load_rules(char* rules_config_path);
+
+int get_rules_count(void);
+
+rule* get_rule(int index);
+
+rule* get_rule_by_id(const char* rule_id);
+
+void free_rules(void);
 
 #endif

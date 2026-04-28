@@ -111,7 +111,7 @@ void* handle_client_thread(void *args) {
         const char *response = "HTTP/1.1 403 OK\r\nContent-Length: 23\r\n\r\nAccess denied \n";
         send(client_sock, response, strlen(response), 0);
         close(client_sock);
-        return;
+        pthread_exit(NULL);
     }
 
     
