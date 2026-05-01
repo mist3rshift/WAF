@@ -17,25 +17,6 @@ static rule* rules_db = NULL;
 static int rules_count = 0;
 static int rules_capacity = 0;
 
-bool is_malicious(String target){
-    char temp[1024];
-    int len = target.len < 1023 ? target.len : 1023;
-    memcpy(temp, target.ptr, len);
-    temp[len] = '\0';
-
-    if (strstr(temp, "<script>") != NULL) {
-        return true;
-    }
-    if (strstr(temp, "../") != NULL) {
-        return true;
-    }
-    if (strstr(temp, "OR 1=1") != NULL) {
-        return true;
-    }
-
-    return false;
-}
-
 /**
  * @brief Get severity string based on score
  */

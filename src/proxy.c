@@ -104,5 +104,6 @@ void stop_waf_handler(int signum) {
     // pthread_mutex_destroy(&log_mutex);
 
     log_info("WAF stopped properly. Goodbye!");
+    free_rules();
     exit(0);
 }

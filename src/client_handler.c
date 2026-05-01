@@ -46,10 +46,18 @@ void handle_client(int client_sock){
 
     parse_request(src, &req);
 
-    if(is_malicious(req.target)) {
+    WafEvent event;
+
+    get_timestamp(event.timestamp);;
+    event.request_id = get_unique_id();
+    event.threshold = 25;
+
+    if(perform_waf_analysis(&req, &event)) {
         const char *response = "HTTP/1.1 403 OK\r\nContent-Length: 23\r\n\r\nAccess denied \n";
         send(client_sock, response, strlen(response), 0);
         close(client_sock);
+        log_event_json(&event);
+        free(event.request_id);
         return;
     }
     
@@ -62,6 +70,8 @@ void handle_client(int client_sock){
     
     close(client_sock);
     close(web_server_sock);
+    log_event_json(&event);
+    free(event.request_id);
 }
 
 void* handle_client_thread(void *args) {
@@ -107,13 +117,20 @@ void* handle_client_thread(void *args) {
 
     parse_request(src, &req);
 
-    if(is_malicious(req.target)) {
+    WafEvent event;
+
+    get_timestamp(event.timestamp);
+    event.request_id = get_unique_id();
+    event.threshold = 25;
+
+    if(perform_waf_analysis(&req, &event)) {
         const char *response = "HTTP/1.1 403 OK\r\nContent-Length: 23\r\n\r\nAccess denied \n";
         send(client_sock, response, strlen(response), 0);
         close(client_sock);
+        log_event_json(&event);
+        free(event.request_id);
         pthread_exit(NULL);
     }
-
     
     //send to web server 
     send(web_server_sock,buffer,sizeof(buffer)-1,0);
@@ -125,6 +142,8 @@ void* handle_client_thread(void *args) {
     log_debug("handle_client_thread : closing connection for thread %lu\n", thread_id);
     cleanup_client_session(client_sock, web_server_sock, client_args);
     log_debug("handle_client_thread : thread %d exiting\n", thread_id);
+    log_event_json(&event);
+    free(event.request_id);
     pthread_exit(NULL);
 }
 

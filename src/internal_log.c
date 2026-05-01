@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 /// @brief Generates a timestamp in the format "YYYY-MM-DD HH:MM:SS"
 /// @param target Pointer to a character array where the timestamp will be stored
@@ -14,6 +15,8 @@ void get_timestamp(char *target){
     struct tm *t = localtime(&now);
     strftime(target, 20, "%Y-%m-%d %H:%M:%S", t);
 }
+
+pthread_mutex_t id_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /// @brief Generates a unique ID in the format "WAF-XXXXXX-XXXXXXXX" where X are letters and digits
 /// @return Pointer to a dynamically allocated string containing the unique ID.
@@ -24,7 +27,10 @@ char* get_unique_id() {
 
     // Static counter for incremental ID generation
     static unsigned long long counter = 0;
+
+    pthread_mutex_lock(&id_mutex);
     counter++;
+    pthread_mutex_unlock(&id_mutex);
 
     const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     const char numset[] = "0123456789";
@@ -46,17 +52,24 @@ char* get_unique_id() {
     return id;
 }
 
+pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 /// @brief Writes a log entry to the log file in JSON format
 /// @param log_entry The log entry to be written to the file
 void write_log(const char *log_entry) {
+
+    pthread_mutex_lock(&log_mutex);
+
     FILE *file = fopen("waf_log.json", "a");
     if (file == NULL) {
         log_error("Failed to open log file");
+        pthread_mutex_unlock(&log_mutex);
         return;
     }
     fprintf(file, "%s\n", log_entry);
     fflush(file);
     fclose(file);
+    pthread_mutex_unlock(&log_mutex);
 }
 
 
