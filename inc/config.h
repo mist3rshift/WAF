@@ -6,6 +6,8 @@
 #define WEB_SERVER_PORT 80
 
 
+
 //firewall part
 #define DEFAULT_RULES_CONF_PATH "../config/rules.conf"
+#define BLOCK_ENABLE false
 #endif

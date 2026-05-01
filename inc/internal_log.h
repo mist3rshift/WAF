@@ -1,16 +1,24 @@
 #ifndef INTERNAL_LOG_H
 #define INTERNAL_LOG_H
+#include <stdint.h>
+#define MAX_URI_LEN         1024
+#define MAX_QUERY_LEN       2048
+#define MAX_HEADER_VAL      512
 
-typedef struct 
-{
-    char method[8];
-    char uri[256];
-    char query_string[512];
-    char host[256];
-    char user_agent[256];
-    char protocol[16];
-
+typedef struct {
+    char method[12];         // GET, POST, OPTIONS...
+    char protocol[16];       // HTTP/1.1
+    char host[256];          
+    char user_agent[MAX_HEADER_VAL];
+    char content_type[128];
+    
+    // Security Zones
+    char uri[MAX_URI_LEN];
+    char query_string[MAX_QUERY_LEN];
+    
+    uint32_t content_length;
 } RequestInfo;
+
 typedef struct {
     char id[16];           // "942100"
     char message[128];     // "SQL Injection Attack Detected"

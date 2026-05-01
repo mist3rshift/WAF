@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include "request_parser.h"
+#include "internal_log.h"
 
 typedef struct _rule {
     char id[16];         // uniq unique (ex: "SQL-001")
@@ -36,5 +37,15 @@ rule* get_rule(int index);
 rule* get_rule_by_id(const char* rule_id);
 
 void free_rules(void);
+
+void url_decode_inplace(char *str);
+
+void normalize_target(char *dest, const char *src, size_t max_len);
+
+void extract_security_context(const Request *raw_req, RequestInfo *waf_req);
+
+void inspect_data(const char *data, const char *target_name, WafEvent *event);
+
+int perform_waf_analysis(const Request *raw_req, WafEvent *event);
 
 #endif

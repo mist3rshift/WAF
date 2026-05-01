@@ -2,11 +2,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "../inc/request_parser.h"
 #include "../inc/firewall.h"
 #include "../lib/cJSON.h"
 #include "../inc/config.h"
+#include "../inc/internal_log.h"
 
 #define INITIAL_CAPACITY 10
 #define CAPACITY_GROWTH_FACTOR 1.5
@@ -32,6 +34,16 @@ bool is_malicious(String target){
     }
 
     return false;
+}
+
+/**
+ * @brief Get severity string based on score
+ */
+const char* get_severity_str(int score) {
+    if (score >= 5) return "CRITICAL";
+    if (score >= 4) return "HIGH";
+    if (score >= 2) return "MEDIUM";
+    return "LOW";
 }
 
 /**
@@ -205,6 +217,198 @@ void free_rules(void) {
     }
     rules_count = 0;
     rules_capacity = 0;
+}
+/**
+ * @brief Helper: Decodes URL-encoded strings in-place.
+ * Converts characters like %27 to ' and + to space.
+ */
+void url_decode_inplace(char *str) {
+    if (!str) return;
+    
+    char *p = str;
+    char *q = str;
+    char hex[3] = {0};
+
+    while (*p) {
+        if (*p == '%' && isxdigit(p[1]) && isxdigit(p[2])) {
+            hex[0] = p[1];
+            hex[1] = p[2];
+            *q = (char)strtol(hex, NULL, 16);
+            p += 3;
+        } else if (*p == '+') {
+            *q = ' ';
+            p++;
+        } else {
+            *q = *p;
+            p++;
+        }
+        q++;
+    }
+    *q = '\0';
+}
+
+/**
+ * @brief Maps generic parsed data into the WAF-specific Security Context.
+ * 
+ * Handles non-null-terminated strings from the parser, splits URI/Query,
+ * and extracts specific high-value headers.
+ */
+void extract_security_context(const Request *raw_req, RequestInfo *waf_req) {
+    if (!raw_req || !waf_req) return;
+
+    // 1. Clear the destination structure to prevent garbage data
+    memset(waf_req, 0, sizeof(RequestInfo));
+
+    // 2. Extract Method
+    snprintf(waf_req->method, sizeof(waf_req->method), "%.*s", 
+             (int)raw_req->method.len, raw_req->method.ptr);
+
+    // 3. Extract Protocol (Convert float minor to string)
+    snprintf(waf_req->protocol, sizeof(waf_req->protocol), "HTTP/1.%.0f", raw_req->minor);
+
+    // 4. Split Target into URI and Query String
+    // HTTP Target usually looks like: /path/to/page?id=123
+    char full_target[MAX_URI_LEN + MAX_QUERY_LEN] = {0};
+    snprintf(full_target, sizeof(full_target), "%.*s", 
+             (int)raw_req->target.len, raw_req->target.ptr);
+
+    char *query_ptr = strchr(full_target, '?');
+    if (query_ptr) {
+        // Copy query string (everything after '?')
+        strncpy(waf_req->query_string, query_ptr + 1, sizeof(waf_req->query_string) - 1);
+        
+        // Terminate full_target at '?' to leave only the URI path
+        *query_ptr = '\0';
+        strncpy(waf_req->uri, full_target, sizeof(waf_req->uri) - 1);
+    } else {
+        // No query string present
+        strncpy(waf_req->uri, full_target, sizeof(waf_req->uri) - 1);
+    }
+
+    // 5. Decode URL encoding for both URI and Query String
+    // This is vital so the inspection engine sees the actual payload
+    url_decode_inplace(waf_req->uri);
+    url_decode_inplace(waf_req->query_string);
+
+    // 6. Loop through headers to find security-critical fields
+    for (int i = 0; i < raw_req->num_headers; i++) {
+        const char *h_name = raw_req->headers[i].name.ptr;
+        size_t h_name_len = raw_req->headers[i].name.len;
+        const char *h_val = raw_req->headers[i].value.ptr;
+        size_t h_val_len = raw_req->headers[i].value.len;
+
+        // Host header
+        if (h_name_len == 4 && strncasecmp(h_name, "Host", 4) == 0) {
+            snprintf(waf_req->host, sizeof(waf_req->host), "%.*s", (int)h_val_len, h_val);
+        }
+        // User-Agent header
+        else if (h_name_len == 10 && strncasecmp(h_name, "User-Agent", 10) == 0) {
+            snprintf(waf_req->user_agent, sizeof(waf_req->user_agent), "%.*s", (int)h_val_len, h_val);
+        }
+        // Content-Type (useful for detecting file upload attacks)
+        else if (h_name_len == 12 && strncasecmp(h_name, "Content-Type", 12) == 0) {
+            // Check for potential buffer truncation or malformed headers here if needed
+        }
+        // Content-Length
+        else if (h_name_len == 14 && strncasecmp(h_name, "Content-Length", 14) == 0) {
+            char temp_len[16] = {0};
+            snprintf(temp_len, sizeof(temp_len), "%.*s", (int)h_val_len, h_val);
+            waf_req->content_length = (uint32_t)atoi(temp_len);
+        }
+    }
+}
+
+
+
+/**
+ * @brief Creates a lowercase copy of the source string for case-insensitive matching.
+ */
+void normalize_target(char *dest, const char *src, size_t max_len) {
+    if (!src || !dest) return;
+    for (size_t i = 0; i < max_len - 1 && src[i]; i++) {
+        dest[i] = (char)tolower((unsigned char)src[i]);
+    }
+    dest[max_len - 1] = '\0';
+}
+
+/**
+ * @brief Scans a specific string against the rules database.
+ * @param data The string to inspect (e.g., query string).
+ * @param target_name The name of the field being inspected (for logging).
+ * @param event Pointer to the current WafEvent to update.
+ */
+void inspect_data(const char *data, const char *target_name, WafEvent *event) {
+    if (!data || strlen(data) == 0) return;
+
+    char clean_data[1024];
+    normalize_target(clean_data, data, sizeof(clean_data));
+
+    for (int i = 0; i < get_rules_count(); i++) {
+        rule *r = get_rule(i);
+        
+        // Use strstr on the normalized data (case-insensitive search)
+        if (strstr(clean_data, r->pattern) != NULL) {
+            event->anomaly_score += r->score;
+
+            // Update RuleMatch details if this is the first match 
+            // or if it has a higher score than the previous match recorded
+            if (strlen(event->rule.id) == 0 || r->score > event->anomaly_score - r->score) {
+                strncpy(event->rule.id, r->id, sizeof(event->rule.id) - 1);
+                strncpy(event->rule.message, r->name, sizeof(event->rule.message) - 1);
+                strncpy(event->rule.severity, get_severity_str(r->score), sizeof(event->rule.severity) - 1);
+                strncpy(event->rule.matched_data, r->pattern, sizeof(event->rule.matched_data) - 1);
+                strncpy(event->rule.target, target_name, sizeof(event->rule.target) - 1);
+                // Tag is derived from type (e.g., SQLI, XSS)
+                snprintf(event->rule.tag, sizeof(event->rule.tag), "threat_type_%d", r->type);
+            }
+        }
+    }
+}
+
+
+/**
+ * @brief Orchestrates the full analysis of the request.
+ * 
+ * This version takes the raw Request struct from the parser, 
+ * populates the WafEvent's internal RequestInfo, and performs 
+ * the security inspection.
+ * 
+ * @param raw_req The raw data from the HTTP parser.
+ * @param event The event structure to be filled and logged.
+ * @return 1 if the request is blocked, 0 if allowed.
+ */
+int perform_waf_analysis(const Request *raw_req, WafEvent *event) {
+    // 1. Basic Initialization
+    event->anomaly_score = 0;
+    event->blocked = 0;
+    event->status_code = 200; // Default to OK
+    
+    // 2. Data Extraction & Mapping
+    // We fill event->req (RequestInfo) using the data from raw_req (Request)
+    // This handles pointer-to-buffer conversion and null-termination.
+    extract_security_context(raw_req, &event->req);
+
+    // 3. Security Inspection
+    // We now use the fixed buffers in event->req for analysis.
+    // This is safer and easier to debug.
+    inspect_data(event->req.uri, "URI", event);
+    inspect_data(event->req.query_string, "QUERY_STRING", event);
+    inspect_data(event->req.user_agent, "USER_AGENT", event);
+    inspect_data(event->req.host, "HOST", event);
+
+    // 4. Decision Logic
+    // event->threshold should be set earlier (e.g., in handle_client)
+    if (event->anomaly_score >= event->threshold) {
+        event->status_code = 403; // Forbidden
+        
+        // BLOCK_ENABLE is typically a macro or global config variable
+        if (BLOCK_ENABLE) {
+            event->blocked = 1;
+            return 1; // Signal the proxy to drop the connection
+        }
+    }
+
+    return 0; // Allow the request to proceed to the backend
 }
 
 
