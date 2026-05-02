@@ -9,5 +9,5 @@
 
 //firewall part
 #define DEFAULT_RULES_CONF_PATH "../config/rules.conf"
-#define BLOCK_ENABLE false
+#define BLOCK_ENABLE true
 #endif

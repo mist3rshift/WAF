@@ -30,7 +30,6 @@ char* get_unique_id() {
 
     pthread_mutex_lock(&id_mutex);
     counter++;
-    pthread_mutex_unlock(&id_mutex);
 
     const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     const char numset[] = "0123456789";
@@ -38,6 +37,7 @@ char* get_unique_id() {
     // 8 digits increment first (0 to 99999999), then letters change
     unsigned int digit_value = counter % 100000000;
     unsigned long long letter_counter = counter / 100000000;
+    pthread_mutex_unlock(&id_mutex);
     
     // Generate 6 letters (base-26)
     char letters[7] = {0};

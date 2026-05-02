@@ -14,6 +14,7 @@
 #include "../inc/proxy.h"
 #include "../inc/firewall.h"
 #include "../inc/request_parser.h"
+#include "../inc/internal_log.h"
 
 void handle_client(int client_sock){
     char buffer[BUFFER_SIZE]; 

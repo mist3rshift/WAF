@@ -26,26 +26,26 @@ void create_test_rules_file(const char *filename) {
     
     fprintf(f, "[\n");
     fprintf(f, "  /* --- SQL INJECTION RULES --- */\n");
-    fprintf(f, "  { \"id\": \"1001\", \"type\": 1, \"name\": \"SQLi: OR 1=1\", \"pattern\": \"or 1=1\", \"score\": 5 },\n");
-    fprintf(f, "  { \"id\": \"1002\", \"type\": 1, \"name\": \"SQLi: Union Select\", \"pattern\": \"union select\", \"score\": 5 },\n");
-    fprintf(f, "  { \"id\": \"1003\", \"type\": 1, \"name\": \"SQLi: Drop Table\", \"pattern\": \"drop table\", \"score\": 5 },\n");
-    fprintf(f, "  { \"id\": \"1004\", \"type\": 1, \"name\": \"SQLi: Sleep\", \"pattern\": \"sleep(\", \"score\": 4 },\n");
-    fprintf(f, "  { \"id\": \"1005\", \"type\": 1, \"name\": \"SQLi: Load File\", \"pattern\": \"load_file(\", \"score\": 5 },\n");
-    fprintf(f, "  { \"id\": \"1006\", \"type\": 1, \"name\": \"SQLi: Order By\", \"pattern\": \"order by\", \"score\": 1 },\n");
-    fprintf(f, "  { \"id\": \"1007\", \"type\": 1, \"name\": \"SQLi: Union\", \"pattern\": \"union\", \"score\": 3 },\n");
+    fprintf(f, "  { \"id\": \"1001\", \"type\": 1, \"name\": \"SQLi: OR 1=1\", \"pattern\": \"or 1=1\", \"score\": 5, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"1002\", \"type\": 1, \"name\": \"SQLi: Union Select\", \"pattern\": \"union select\", \"score\": 5, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"1003\", \"type\": 1, \"name\": \"SQLi: Drop Table\", \"pattern\": \"drop table\", \"score\": 5, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"1004\", \"type\": 1, \"name\": \"SQLi: Sleep\", \"pattern\": \"sleep(\", \"score\": 4, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"1005\", \"type\": 1, \"name\": \"SQLi: Load File\", \"pattern\": \"load_file(\", \"score\": 5, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"1006\", \"type\": 1, \"name\": \"SQLi: Order By\", \"pattern\": \"order by\", \"score\": 1, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"1007\", \"type\": 1, \"name\": \"SQLi: Union\", \"pattern\": \"union\", \"score\": 3, \"is_regex\": 0 },\n");
     fprintf(f, "  \n");
     fprintf(f, "  /* --- XSS RULES --- */\n");
-    fprintf(f, "  { \"id\": \"2001\", \"type\": 2, \"name\": \"XSS: Script Tag\", \"pattern\": \"<script>\", \"score\": 5 },\n");
-    fprintf(f, "  { \"id\": \"2002\", \"type\": 2, \"name\": \"XSS: Alert\", \"pattern\": \"alert(\", \"score\": 4 },\n");
-    fprintf(f, "  { \"id\": \"2003\", \"type\": 2, \"name\": \"XSS: OnError\", \"pattern\": \"onerror=\", \"score\": 4 },\n");
-    fprintf(f, "  { \"id\": \"2004\", \"type\": 2, \"name\": \"XSS: OnLoad\", \"pattern\": \"onload=\", \"score\": 4 },\n");
-    fprintf(f, "  { \"id\": \"2005\", \"type\": 2, \"name\": \"XSS: Iframe\", \"pattern\": \"<iframe>\", \"score\": 4 },\n");
-    fprintf(f, "  { \"id\": \"2006\", \"type\": 2, \"name\": \"XSS: Eval\", \"pattern\": \"eval(\", \"score\": 4 },\n");
+    fprintf(f, "  { \"id\": \"2001\", \"type\": 2, \"name\": \"XSS: Script Tag\", \"pattern\": \"<script>\", \"score\": 5, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"2002\", \"type\": 2, \"name\": \"XSS: Alert\", \"pattern\": \"alert(\", \"score\": 4, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"2003\", \"type\": 2, \"name\": \"XSS: OnError\", \"pattern\": \"onerror=\", \"score\": 4, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"2004\", \"type\": 2, \"name\": \"XSS: OnLoad\", \"pattern\": \"onload=\", \"score\": 4, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"2005\", \"type\": 2, \"name\": \"XSS: Iframe\", \"pattern\": \"<iframe>\", \"score\": 4, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"2006\", \"type\": 2, \"name\": \"XSS: Eval\", \"pattern\": \"eval(\", \"score\": 4, \"is_regex\": 0 },\n");
     fprintf(f, "  \n");
     fprintf(f, "  /* --- PATH TRAVERSAL RULES --- */\n");
-    fprintf(f, "  { \"id\": \"3001\", \"type\": 3, \"name\": \"Path: Dot-Dot-Slash\", \"pattern\": \"../\", \"score\": 5 },\n");
-    fprintf(f, "  { \"id\": \"3002\", \"type\": 3, \"name\": \"Path: Passwd\", \"pattern\": \"/etc/passwd\", \"score\": 5 },\n");
-    fprintf(f, "  { \"id\": \"3003\", \"type\": 3, \"name\": \"Path: Shadow\", \"pattern\": \"/etc/shadow\", \"score\": 5 }\n");
+    fprintf(f, "  { \"id\": \"3001\", \"type\": 3, \"name\": \"Path: Dot-Dot-Slash\", \"pattern\": \"../\", \"score\": 5, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"3002\", \"type\": 3, \"name\": \"Path: Passwd\", \"pattern\": \"/etc/passwd\", \"score\": 5, \"is_regex\": 0 },\n");
+    fprintf(f, "  { \"id\": \"3003\", \"type\": 3, \"name\": \"Path: Shadow\", \"pattern\": \"/etc/shadow\", \"score\": 5, \"is_regex\": 0 }\n");
     fprintf(f, "]\n");
     fclose(f);
 }
@@ -300,49 +300,6 @@ int test_normalize_target_truncation() {
     char dest[5];
     normalize_target(dest, "hello world", sizeof(dest));
     ASSERT_EQ(strlen(dest), 4);
-    
-    TEST_PASSED;
-    return 0;
-}
-
-// ============================================================================
-// IS_MALICIOUS TESTS (Legacy function)
-// ============================================================================
-
-int test_is_malicious_script_tag() {
-    String s = S("<script>alert('xss')</script>");
-    bool result = is_malicious(s);
-    ASSERT_TRUE(result);
-    
-    TEST_PASSED;
-    return 0;
-}
-
-int test_is_malicious_path_traversal() {
-    String s = S("../../../etc/passwd");
-    bool result = is_malicious(s);
-    ASSERT_TRUE(result);
-    
-    TEST_PASSED;
-    return 0;
-}
-
-int test_is_malicious_sqli() {
-    String s = S("id' OR '1'='1");
-    bool result = is_malicious(s);
-    // The is_malicious function checks for uppercase "OR 1=1", not lowercase
-    // This test should pass because the function uses case-sensitive matching
-    // But the pattern is lowercase, so it won't match. Let's check the actual behavior.
-    ASSERT_TRUE(result == true || result == false);
-    
-    TEST_PASSED;
-    return 0;
-}
-
-int test_is_malicious_clean() {
-    String s = S("/api/users/123");
-    bool result = is_malicious(s);
-    ASSERT_FALSE(result);
     
     TEST_PASSED;
     return 0;
@@ -823,7 +780,7 @@ int test_null_pointer_handling() {
     WafEvent event;
     memset(&event, 0, sizeof(WafEvent));
     
-    extract_security_context(NULL, &event);
+    extract_security_context(NULL, &event.req);
     extract_security_context(NULL, NULL);
     inspect_data(NULL, "URI", &event);
     
@@ -888,17 +845,7 @@ int main(void) {
     tests_run++;
     if (test_normalize_target_truncation() == 0) tests_passed++;
     tests_run++;
-    
-    printf("\n=== IS_MALICIOUS TESTS ===\n");
-    if (test_is_malicious_script_tag() == 0) tests_passed++;
-    tests_run++;
-    if (test_is_malicious_path_traversal() == 0) tests_passed++;
-    tests_run++;
-    if (test_is_malicious_sqli() == 0) tests_passed++;
-    tests_run++;
-    if (test_is_malicious_clean() == 0) tests_passed++;
-    tests_run++;
-    
+
     printf("\n=== EXTRACT SECURITY CONTEXT TESTS ===\n");
     if (test_extract_security_context_simple_get() == 0) tests_passed++;
     tests_run++;

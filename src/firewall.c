@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <regex.h>
 
 #include "../inc/request_parser.h"
 #include "../inc/firewall.h"
@@ -118,11 +119,12 @@ int load_rules(char* rules_config_path) {
         cJSON* pattern_item = cJSON_GetObjectItem(rule_item, "pattern");
         cJSON* name_item    = cJSON_GetObjectItem(rule_item, "name");
         cJSON* score_item   = cJSON_GetObjectItem(rule_item, "score");
+        cJSON* regex_item   = cJSON_GetObjectItem(rule_item, "is_regex");
 
         // Validate field presence and types
         if (cJSON_IsString(id_item) && cJSON_IsNumber(type_item) && 
             cJSON_IsString(pattern_item) && cJSON_IsString(name_item) && 
-            cJSON_IsNumber(score_item)) {
+            cJSON_IsNumber(score_item) && cJSON_IsNumber(regex_item)) {
 
             // Dynamic resizing
             if (rules_count >= rules_capacity) {
@@ -146,6 +148,8 @@ int load_rules(char* rules_config_path) {
             rules_db[rules_count].name[sizeof(rules_db[rules_count].name) - 1] = '\0';
 
             rules_db[rules_count].score = score_item->valueint;
+
+            rules_db[rules_count].is_regex = regex_item->valueint;
 
             rules_count++;
         }
@@ -306,10 +310,12 @@ void extract_security_context(const Request *raw_req, RequestInfo *waf_req) {
  */
 void normalize_target(char *dest, const char *src, size_t max_len) {
     if (!src || !dest) return;
+    int len = 0;
     for (size_t i = 0; i < max_len - 1 && src[i]; i++) {
         dest[i] = (char)tolower((unsigned char)src[i]);
+        len++;
     }
-    dest[max_len - 1] = '\0';
+    dest[len] = '\0';
 }
 
 /**
@@ -326,23 +332,39 @@ void inspect_data(const char *data, const char *target_name, WafEvent *event) {
 
     for (int i = 0; i < get_rules_count(); i++) {
         rule *r = get_rule(i);
-        
-        // Use strstr on the normalized data (case-insensitive search)
-        if (strstr(clean_data, r->pattern) != NULL) {
-            event->anomaly_score += r->score;
 
-            // Update RuleMatch details if this is the first match 
-            // or if it has a higher score than the previous match recorded
-            if (strlen(event->rule.id) == 0 || r->score > event->anomaly_score - r->score) {
-                strncpy(event->rule.id, r->id, sizeof(event->rule.id) - 1);
-                strncpy(event->rule.message, r->name, sizeof(event->rule.message) - 1);
-                strncpy(event->rule.severity, get_severity_str(r->score), sizeof(event->rule.severity) - 1);
-                strncpy(event->rule.matched_data, r->pattern, sizeof(event->rule.matched_data) - 1);
-                strncpy(event->rule.target, target_name, sizeof(event->rule.target) - 1);
-                // Tag is derived from type (e.g., SQLI, XSS)
-                snprintf(event->rule.tag, sizeof(event->rule.tag), "threat_type_%d", r->type);
+        bool matched = false;
+        regex_t compiled;
+        
+        if (r->is_regex) {
+            if (regcomp(&compiled, r->pattern, REG_EXTENDED | REG_ICASE) != 0) {
+                // pattern invalide, on skip cette règle
+                continue;
             }
+            matched = (regexec(&compiled, clean_data, 0, NULL, 0) == 0);
+            regfree(&compiled);
         }
+        else {
+            // Use strstr on the normalized data (case-insensitive search)
+            matched = (strstr(clean_data, r->pattern) != NULL);
+        }
+        
+        if (matched) {
+                event->anomaly_score += r->score;
+
+                // Update RuleMatch details if this is the first match 
+                // or if it has a higher score than the previous match recorded
+                if (strlen(event->rule.id) == 0 || r->score > event->anomaly_score - r->score) {
+                    strncpy(event->rule.id, r->id, sizeof(event->rule.id) - 1);
+                    strncpy(event->rule.message, r->name, sizeof(event->rule.message) - 1);
+                    strncpy(event->rule.severity, get_severity_str(r->score), sizeof(event->rule.severity) - 1);
+                    strncpy(event->rule.matched_data, r->pattern, sizeof(event->rule.matched_data) - 1);
+                    strncpy(event->rule.target, target_name, sizeof(event->rule.target) - 1);
+                    // Tag is derived from type (e.g., SQLI, XSS)
+                    snprintf(event->rule.tag, sizeof(event->rule.tag), "threat_type_%d", r->type);
+                }
+        }
+    
     }
 }
 

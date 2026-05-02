@@ -11,6 +11,7 @@ typedef struct _rule {
     char pattern[128];   // pattern to seach
     char name[64];       // Nom explicite
     int score;           // score 
+    int is_regex;        // 0 pour strstr, 1 pour regexec
 } rule;
 
 typedef enum {
@@ -23,8 +24,6 @@ typedef enum {
     THREAT_INVALID_HEADER = 102,
     THREAT_MALFORMED = 999
 } ThreatType;
-
-bool is_malicious(String target);
 
 void strip_comments(char* str);
 

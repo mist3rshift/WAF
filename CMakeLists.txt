@@ -12,6 +12,7 @@ add_executable(WAF
     src/client_handler.c
     src/request_parser.c
     src/firewall.c
+    src/internal_log.c
     lib/log.c
     lib/cJSON.c
 )
