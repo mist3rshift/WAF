@@ -51,7 +51,7 @@ void handle_client(int client_sock){
 
     get_timestamp(event.timestamp);;
     event.request_id = get_unique_id();
-    event.threshold = 25;
+    event.threshold = 5;
 
     if(perform_waf_analysis(&req, &event)) {
         const char *response = "HTTP/1.1 403 OK\r\nContent-Length: 23\r\n\r\nAccess denied \n";
@@ -122,7 +122,7 @@ void* handle_client_thread(void *args) {
 
     get_timestamp(event.timestamp);
     event.request_id = get_unique_id();
-    event.threshold = 25;
+    event.threshold = 5;
 
     if(perform_waf_analysis(&req, &event)) {
         const char *response = "HTTP/1.1 403 OK\r\nContent-Length: 23\r\n\r\nAccess denied \n";

@@ -119,12 +119,11 @@ int load_rules(char* rules_config_path) {
         cJSON* pattern_item = cJSON_GetObjectItem(rule_item, "pattern");
         cJSON* name_item    = cJSON_GetObjectItem(rule_item, "name");
         cJSON* score_item   = cJSON_GetObjectItem(rule_item, "score");
-        cJSON* regex_item   = cJSON_GetObjectItem(rule_item, "is_regex");
 
         // Validate field presence and types
         if (cJSON_IsString(id_item) && cJSON_IsNumber(type_item) && 
             cJSON_IsString(pattern_item) && cJSON_IsString(name_item) && 
-            cJSON_IsNumber(score_item) && cJSON_IsNumber(regex_item)) {
+            cJSON_IsNumber(score_item)) {
 
             // Dynamic resizing
             if (rules_count >= rules_capacity) {
@@ -148,8 +147,6 @@ int load_rules(char* rules_config_path) {
             rules_db[rules_count].name[sizeof(rules_db[rules_count].name) - 1] = '\0';
 
             rules_db[rules_count].score = score_item->valueint;
-
-            rules_db[rules_count].is_regex = regex_item->valueint;
 
             rules_count++;
         }
@@ -336,7 +333,7 @@ void inspect_data(const char *data, const char *target_name, WafEvent *event) {
         bool matched = false;
         regex_t compiled;
         
-        if (r->is_regex) {
+        if (r->type == 7) {
             if (regcomp(&compiled, r->pattern, REG_EXTENDED | REG_ICASE) != 0) {
                 // pattern invalide, on skip cette règle
                 continue;
