@@ -40,3 +40,4 @@ add_executable(test_firewall
 )
 
 target_compile_definitions(WAF PRIVATE LOG_USE_COLOR)
+target_link_libraries(WAF ssl crypto)
