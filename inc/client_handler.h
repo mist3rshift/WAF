@@ -1,6 +1,8 @@
 #ifndef CLIENT_HANDLER_H
 #define CLIENT_HANDLER_H
 
+#include <netinet/in.h>
+#include <openssl/ssl.h>
 
 typedef struct {
     int client_fd;
@@ -9,9 +11,8 @@ typedef struct {
     SSL *ssl; // ← ajouter ça
 } ClientArgs;
 
-SSL_CTX* initSSLContext(int ctxMethod);
-void showCerts(SSL* ssl);
-void handle_client(int client_sock);
+void showCerts_client(SSL* ssl);
+void handle_client(int client_sock, SSL *ssl);
 void* handle_client_thread(void *args);
 void cleanup_client_session(int client_sock, int web_server_sock, ClientArgs *client_args);
 #endif

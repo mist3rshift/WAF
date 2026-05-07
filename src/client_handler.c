@@ -22,46 +22,8 @@
 #include "../inc/request_parser.h"
 #include "../inc/internal_log.h"
 
-SSL_CTX* initSSLContext(int ctxMethod){
-    const SSL_METHOD *method;
-    SSL_CTX *ctx;
-    
-    SSL_library_init(); // initialize the SSL library
-    SSL_load_error_strings(); // bring in and register error messages
-    OpenSSL_add_all_algorithms(); // load usable algorithms
-    
-    switch(ctxMethod){ // create new client-method instance
-        case 1 :
-        method = TLSv1_client_method();
-        printf("[+] Use TLSv1 method.\n");
-        break;
-        // SSLv2 isn't sure and is deprecated, so the latest OpenSSL version delete his implementation.
-        /*case 2 :
-        method = SSLv2_client_method();
-        printf("[+] Use SSLv2 method.\n");
-        break;*/
-        case 3 :
-        method = SSLv3_client_method();
-        printf("[+] Use SSLv3 method.\n");
-        break;
-        case 4 :
-        method = SSLv23_client_method();
-        printf("[+] Use SSLv2&3 method.\n");
-        break;
-        default :
-        method = SSLv23_client_method();
-        printf("[+] Use SSLv2&3 method.\n");
-    }
-    
-    ctx = SSL_CTX_new(method); // create new context from selected method
-    if(ctx == NULL){
-        ERR_print_errors_fp(stderr);
-        abort();
-    }
-    return ctx;
-}
 
-void showCerts(SSL* ssl){
+void showCerts_client(SSL* ssl){
     X509 *cert;
     char *subject, *issuer;
     
@@ -87,12 +49,15 @@ void showCerts(SSL* ssl){
     return;
 }
 
-void handle_client(int client_sock){
-    char buffer[BUFFER_SIZE]; 
-    SSL_CTX *ctx;
-    SSL *ssl = ClientArgs->ssl;
+void handle_client(int client_sock, SSL *ssl){
+    char buffer[BUFFER_SIZE];
 
-    ctx = initSSLContext(ctxMethod); // load SSL library and dependances
+    SSL_set_fd(ssl, client_sock); // attach the socket descriptor
+
+    if(SSL_accept(ssl) == -1) // make the SSL connection
+    ERR_print_errors_fp(stderr);
+    else{
+    SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY); }
 
     // 3. Connexion to web server  (Upstream)
     int web_server_sock = initialize_server_web_connection();
@@ -102,13 +67,6 @@ void handle_client(int client_sock){
         close(client_sock);
         return;
     }
- 
-    SSL_set_fd(ssl, sock); // attach the socket descriptor
-
-    if(SSL_accept(ssl) == -1) // make the SSL connection
-    ERR_print_errors_fp(stderr);
-    else{
-    SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY); 
 
     //Loop if message to long 
     int bytes_read = SSL_read(ssl, buffer, sizeof(buffer) - 1);
@@ -145,8 +103,8 @@ void handle_client(int client_sock){
         return;
     }
     
-    SSL_get_cipher(ssl));
-    showCerts(ssl);
+    SSL_get_cipher(ssl);
+    showCerts_client(ssl);
 
     //send to web server 
     SSL_write(ssl,buffer,sizeof(buffer)-1);
@@ -154,13 +112,13 @@ void handle_client(int client_sock){
     //relay web server response to  client
     relay_stream(web_server_sock,client_sock);
 
-    
+    client_sock = SSL_get_fd(ssl); // get traditionnal socket connection from SSL connection
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
     close(client_sock);
     close(web_server_sock);
     log_event_json(&event);
     free(event.request_id);
-    SSL_shutdown(ssl);
-    SSL_free(ssl);
 }
 
 void* handle_client_thread(void *args) {
@@ -169,6 +127,7 @@ void* handle_client_thread(void *args) {
     ClientArgs *client_args = (ClientArgs *)args;
     int client_sock = client_args->client_fd;
     struct sockaddr_in client_addr = client_args->client_addr;
+    SSL *ssl = client_args->ssl;
     pthread_t thisThread = pthread_self();
     unsigned long thread_id = (unsigned long) thisThread; // Use thread ID for logging
     
@@ -176,10 +135,13 @@ void* handle_client_thread(void *args) {
 
     char buffer[BUFFER_SIZE]; 
     int web_server_sock = -1; // I,itialize to -1 to indicate no connection yet
-    SSL_CTX *ctx;
-    SSL *ssl = ClientArgs->ssl;
 
-    ctx = initSSLContext(ctxMethod); // load SSL library and dependances
+    SSL_set_fd(ssl, client_sock); // attach the socket descriptor
+
+    if(SSL_accept(ssl) == -1) // make the SSL connection
+    ERR_print_errors_fp(stderr);
+    else{
+    SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY); }
 
     // 3. Connexion to web server (Upstream)
     web_server_sock = initialize_server_web_connection();
@@ -192,13 +154,6 @@ void* handle_client_thread(void *args) {
         pthread_exit(NULL);
     }
  
-    SSL_set_fd(ssl, sock); // attach the socket descriptor
-
-    if(SSL_accept(ssl) == -1) // make the SSL connection
-    ERR_print_errors_fp(stderr);
-    else{
-    SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY); 
-
     //Loop if message to long
     int bytes_read = SSL_read(ssl, buffer, sizeof(buffer) - 1);
     if (bytes_read <= 0) {
@@ -233,8 +188,8 @@ void* handle_client_thread(void *args) {
         pthread_exit(NULL);
     }
     
-    SSL_get_cipher(ssl));
-    showCerts(ssl);
+    SSL_get_cipher(ssl);
+    showCerts_client(ssl);
 
     //send to web server 
     SSL_write(ssl,buffer,sizeof(buffer)-1);
@@ -256,8 +211,7 @@ void* handle_client_thread(void *args) {
 
 void cleanup_client_session(int client_fd, int web_fd,ClientArgs *client_args) {
     if (client_fd >= 0) {
-        close(client_fd);
-        SSL_CTX_free(ctx); // release SSL's context
+        close(client_fd);// release SSL's context
         log_debug("Client socket %d closed.", client_fd);
     }
     

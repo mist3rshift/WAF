@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 project(WAF)
+
+find_package(OpenSSL REQUIRED)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
@@ -40,4 +43,4 @@ add_executable(test_firewall
 )
 
 target_compile_definitions(WAF PRIVATE LOG_USE_COLOR)
-target_link_libraries(WAF ssl crypto)
+target_link_libraries(WAF PRIVATE OpenSSL::SSL OpenSSL::Crypto)
