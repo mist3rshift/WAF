@@ -5,9 +5,11 @@
 #define WEB_SERVER_ADDR 127.0.0.1
 #define WEB_SERVER_PORT 80
 
+// SSL/TLS certificate paths
+#define CERT_PATH "../certs/server.crt"
+#define KEY_PATH "../certs/server.key"
 
-
-//firewall part
+// firewall part
 #define DEFAULT_RULES_CONF_PATH "../config/rules.conf"
 #define BLOCK_ENABLE true
 #endif

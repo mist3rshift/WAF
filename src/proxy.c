@@ -54,43 +54,7 @@ int initialise_proxy_socket(int port){
     return proxy_socket;
 }
 
-void makekCert(X509 **x509p, EVP_PKEY **pkeyp, int bits, int serial, int days){
-    X509 *x;
-    EVP_PKEY *pk;
-    RSA *rsa;
-    X509_NAME *name = NULL;
-    
-    // 1. Génération de la clé directement en EVP_PKEY
-    *pkeyp = EVP_PKEY_Q_keygen(NULL, NULL, "RSA", (size_t)bits);
-    if (!*pkeyp) return;
 
-    // 2. Création du certificat X509
-    *x509p = X509_new();
-    X509_set_version(*x509p, 2);
-    ASN1_INTEGER_set(X509_get_serialNumber(*x509p), serial);
-    X509_gmtime_adj(X509_get_notBefore(*x509p), 0);
-    X509_gmtime_adj(X509_get_notAfter(*x509p), (long)60*60*24*days);
-    
-    // Associer la clé au certificat
-    X509_set_pubkey(*x509p, *pkeyp); // define public key in cert
-    name = X509_get_subject_name(x);
-    
-    // This function creates and adds the entry, working out the
-    // correct string type and performing checks on its length.
-    // Normally we'd check the return value for errors...
-    X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (const unsigned char*)"XX", -1, -1, 0); // useless if more anonymity needed
-    X509_NAME_add_entry_by_txt(name,"CN", MBSTRING_ASC, (const unsigned char*)"ASRAT", -1, -1, 0); // useless if more anonymity needed
-    
-    // Its self signed so set the issuer name to be the same as the subject.
-    X509_set_issuer_name(*x509p, name);
-    
-    if(!X509_sign(*x509p, *pkeyp, EVP_sha256())) // secured more with sha1? md5/sha1? sha256?
-    abort();
-    
-    *x509p = x;
-    *pkeyp = pk;
-    return;
-}
 
 SSL_CTX* initSSLContext(){
     const SSL_METHOD *method;
@@ -110,58 +74,43 @@ SSL_CTX* initSSLContext(){
 void loadCertificates(SSL_CTX* ctx, const char* certFile, const char* keyFile){
     X509 *cert = NULL;
     EVP_PKEY *pkey = NULL;
-
+    // Require certificate and key files to be provided; do not generate keys.
     if(certFile == NULL || keyFile == NULL){
-    
-    printf("[*] Generate random server's certificat and private key.\n");
-    makekCert(&cert, &pkey, 2048, 0, 0);
-    SSL_CTX_use_certificate(ctx, cert);
-    SSL_CTX_use_PrivateKey(ctx, pkey);
-    
-    // set the local certificate from certFile if certFile specified
-    // set the private key from keyFile (may be the same as certFile) if specified
-    } else if (SSL_CTX_use_PrivateKey_file(ctx, keyFile, SSL_FILETYPE_PEM) <= 0) {
-    ERR_print_errors_fp(stderr);
-    exit(EXIT_FAILURE);
-    } else
-    printf("[*] Server's certificat and private key loaded from file.\n");
-    
-    // verify private key match the public key into the certificate
-    if(!SSL_CTX_check_private_key(ctx)){
-    fprintf(stderr, "[-] Private key does not match the public certificate...\n");
-    abort();
-    } else
-    printf("[+] Server's private key match public certificat !\n");
-    return;
-}
-
-void showCerts(SSL* ssl){
-    X509 *cert;
-    char *subject, *issuer;
-    
-    cert = SSL_get_peer_certificate(ssl); // get the client's certificate
-    if(cert != NULL){
-    subject = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0); // get certificate's subject
-    issuer = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0); // get certificate's issuer
-    
-    printf("[+] Client certificates :\n");
-    printf("\tSubject: %s\n", subject);
-    printf("\tIssuer: %s\n", issuer);
-    
-    free(subject); // free the malloc'ed string
-    free(issuer); // free the malloc'ed string
-    X509_free(cert); // free the malloc'ed certificate copy
+        fprintf(stderr, "[-] Certificate or private key file not provided.\n");
+        exit(EXIT_FAILURE);
     }
-    else
-    printf("[-] No client's certificates\n");
+
+    printf("[*] Loading server's certificate and private key from files...\n");
+    if (SSL_CTX_use_certificate_file(ctx, certFile, SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    if (SSL_CTX_use_PrivateKey_file(ctx, keyFile, SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    printf("[*] Server's certificate and private key loaded from file.\n");
+    
+    // Verify private key matches the public key in the certificate
+    if(!SSL_CTX_check_private_key(ctx)){
+        fprintf(stderr, "[-] Private key does not match the public certificate...\n");
+        abort();
+    } else {
+        printf("[+] Server's private key match public certificate!\n");
+    }
+    // Do not request or verify client certificates (no mutual TLS)
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+    
     return;
 }
 
 void start_proxy(int port) {
     const char *certFile, *keyFile;
     
-    ctx = initSSLContext(4);
-    loadCertificates(ctx, NULL, NULL);
+    ctx = initSSLContext();
+    loadCertificates(ctx, CERT_PATH, KEY_PATH);
 
     proxy_socket = initialise_proxy_socket(port);
     struct sockaddr_in client_addr;

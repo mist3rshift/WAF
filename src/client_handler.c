@@ -23,104 +23,6 @@
 #include "../inc/internal_log.h"
 
 
-void showCerts_client(SSL* ssl){
-    X509 *cert;
-    char *subject, *issuer;
-    
-    cert = SSL_get_peer_certificate(ssl); // get the server's certificate
-    if(cert != NULL){
-        subject = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0); // get certificat's subject
-        issuer = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0); // get certificat's issuer
-        
-        printf("[+] Server certificates :\n");
-        printf("\tSubject: %s\n", subject);
-        printf("\tIssuer: %s\n", issuer);
-        
-        free(subject); // free the malloc'ed string
-        free(issuer); // free the malloc'ed string
-        X509_free(cert); // free the malloc'ed certificate copy
-        if(SSL_get_verify_result(ssl) == X509_V_OK) // check certificat's trust
-        printf("[+] Server certificates X509 is trust!\n");
-        else
-        printf("[-] Server certificates X509 is not trust...\n");
-    }
-    else
-    printf("[-] No server's certificates\n");
-    return;
-}
-
-void handle_client(int client_sock, SSL *ssl){
-    char buffer[BUFFER_SIZE];
-
-    SSL_set_fd(ssl, client_sock); // attach the socket descriptor
-
-    if(SSL_accept(ssl) == -1) // make the SSL connection
-    ERR_print_errors_fp(stderr);
-    else{
-    SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY); }
-
-    // 3. Connexion to web server  (Upstream)
-    int web_server_sock = initialize_server_web_connection();
-    if (web_server_sock < 0) {
-        const char *response = "HTTP/1.1 503 OK\r\nContent-Length: 23\r\n\r\nWeb Server unreachable \n";
-        SSL_write(ssl, response, strlen(response));
-        close(client_sock);
-        return;
-    }
-
-    //Loop if message to long 
-    int bytes_read = SSL_read(ssl, buffer, sizeof(buffer) - 1);
-    if (bytes_read <= 0) {
-        log_error("handle_client : no bytes received \n");
-        close(client_sock);
-        return;
-    }
-
-    buffer[bytes_read] = '\0';
-
-    String src;
-    src.ptr = buffer;
-    src.len = bytes_read;
-
-    Request req;
-
-    parse_request(src, &req);
-
-    WafEvent event;
-
-    get_timestamp(event.timestamp);;
-    event.request_id = get_unique_id();
-    event.threshold = 5;
-
-    if(perform_waf_analysis(&req, &event)) {
-        const char *response = "HTTP/1.1 403 OK\r\nContent-Length: 23\r\n\r\nAccess denied \n";
-        SSL_write(ssl, response, strlen(response));
-        close(client_sock);
-        log_event_json(&event);
-        free(event.request_id);
-        SSL_shutdown(ssl);
-        SSL_free(ssl);
-        return;
-    }
-    
-    SSL_get_cipher(ssl);
-    showCerts_client(ssl);
-
-    //send to web server 
-    SSL_write(ssl,buffer,sizeof(buffer)-1);
-    
-    //relay web server response to  client
-    relay_stream(web_server_sock,client_sock);
-
-    client_sock = SSL_get_fd(ssl); // get traditionnal socket connection from SSL connection
-    SSL_shutdown(ssl);
-    SSL_free(ssl);
-    close(client_sock);
-    close(web_server_sock);
-    log_event_json(&event);
-    free(event.request_id);
-}
-
 void* handle_client_thread(void *args) {
     pthread_detach(pthread_self()); // Detach the thread to allow for automatic resource cleanup
     //Extract client information from args
@@ -134,33 +36,63 @@ void* handle_client_thread(void *args) {
     log_info("handle_client_thread : thread %lu handling client socket %d\n", thread_id, client_sock);
 
     char buffer[BUFFER_SIZE]; 
-    int web_server_sock = -1; // I,itialize to -1 to indicate no connection yet
+    int web_server_sock = -1; // Initialize to -1 to indicate no connection yet
+    int bytes_read = 0;
+    int use_ssl = 1; // Assume SSL by default
 
-    SSL_set_fd(ssl, client_sock); // attach the socket descriptor
+    // Peek at the first byte to detect protocol (SSL vs plain HTTP)
+    unsigned char first_byte;
+    int peek_result = recv(client_sock, &first_byte, 1, MSG_PEEK);
+    
+    if (peek_result > 0) {
+        // Check if this is a TLS Client Hello (0x16 = Handshake) or HTTP request
+        // HTTP requests start with: G(0x47), P(0x50), D(0x44), H(0x48), T(0x54), O(0x4F), C(0x43), etc.
+        if (first_byte == 0x16 || first_byte == 0x14 || first_byte == 0x15 || first_byte == 0x17) {
+            // TLS/SSL record type (Handshake, Change Cipher, Alert, Application Data)
+            use_ssl = 1;
+        } else if ((first_byte >= 0x41 && first_byte <= 0x5A) || (first_byte >= 0x61 && first_byte <= 0x7A)) {
+            // ASCII letter: likely HTTP (GET, POST, HEAD, PUT, DELETE, etc.)
+            use_ssl = 0;
+        } else {
+            // Unknown protocol, try SSL anyway
+            use_ssl = 1;
+        }
+    }
 
-    if(SSL_accept(ssl) == -1) // make the SSL connection
-    ERR_print_errors_fp(stderr);
-    else{
-    SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY); }
-
-    // 3. Connexion to web server (Upstream)
-    web_server_sock = initialize_server_web_connection();
-    if (web_server_sock < 0) {
+    // Handle SSL connection if needed
+    if (use_ssl) {
+        SSL_set_fd(ssl, client_sock); // attach the socket descriptor
         
-        const char *response = "HTTP/1.1 503 OK\r\nContent-Length: 23\r\n\r\nWeb Server unreachable \n";
-        SSL_write(ssl, response, strlen(response));
-        cleanup_client_session(client_sock, web_server_sock, client_args);
-        log_error("handle_client_thread : failed to connect to web server for thread %lu\n", thread_id);
-        pthread_exit(NULL);
+        int ssl_ret = SSL_accept(ssl);
+        if (ssl_ret <= 0) {
+            int ssl_err = SSL_get_error(ssl, ssl_ret);
+            log_error("handle_client_thread : SSL_accept failed with error %d for thread %lu\n", ssl_err, thread_id);
+            ERR_print_errors_fp(stderr);
+            cleanup_client_session(client_sock, web_server_sock, client_args);
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+            pthread_exit(NULL);
+        }
+        
+        SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
+        
+        // Read from SSL connection
+        bytes_read = SSL_read(ssl, buffer, sizeof(buffer) - 1);
+    } else {
+        // Plain HTTP: read directly from socket
+        bytes_read = recv(client_sock, buffer, sizeof(buffer) - 1, 0);
     }
- 
-    //Loop if message to long
-    int bytes_read = SSL_read(ssl, buffer, sizeof(buffer) - 1);
+    
     if (bytes_read <= 0) {
-        log_error("handle_client : no bytes received \n");
+        log_error("handle_client_thread : no bytes received for thread %lu\n", thread_id);
         cleanup_client_session(client_sock, web_server_sock, client_args);
+        if (use_ssl) {
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+        }
         pthread_exit(NULL);
     }
+    
     buffer[bytes_read] = '\0';
 
     String src;
@@ -177,34 +109,78 @@ void* handle_client_thread(void *args) {
     event.request_id = get_unique_id();
     event.threshold = 5;
 
+    // 3. Connection to web server (Upstream)
+    web_server_sock = initialize_server_web_connection();
+    if (web_server_sock < 0) {
+        const char *response = "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 23\r\n\r\nWeb Server unreachable \n";
+        if (use_ssl) {
+            SSL_write(ssl, response, strlen(response));
+        } else {
+            send(client_sock, response, strlen(response), 0);
+        }
+        cleanup_client_session(client_sock, web_server_sock, client_args);
+        log_error("handle_client_thread : failed to connect to web server for thread %lu\n", thread_id);
+        if (use_ssl) {
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+        }
+        pthread_exit(NULL);
+    }
+
+    // WAF Analysis
     if(perform_waf_analysis(&req, &event)) {
-        const char *response = "HTTP/1.1 403 OK\r\nContent-Length: 23\r\n\r\nAccess denied \n";
-        SSL_write(ssl, response, strlen(response));
-        close(client_sock);
+        const char *response = "HTTP/1.1 403 Forbidden\r\nContent-Length: 15\r\n\r\nAccess denied\n";
+        if (use_ssl) {
+            SSL_write(ssl, response, strlen(response));
+        } else {
+            send(client_sock, response, strlen(response), 0);
+        }
         log_event_json(&event);
         free(event.request_id);
-        SSL_shutdown(ssl);
-        SSL_free(ssl);
+        cleanup_client_session(client_sock, web_server_sock, client_args);
+        if (use_ssl) {
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+        }
         pthread_exit(NULL);
     }
     
-    SSL_get_cipher(ssl);
-    showCerts_client(ssl);
 
-    //send to web server 
-    SSL_write(ssl,buffer,sizeof(buffer)-1);
+
+    // Forward request to web server
+    if (send(web_server_sock, buffer, bytes_read, 0) < 0) {
+        log_error("handle_client_thread : failed to send request to web server\n");
+        cleanup_client_session(client_sock, web_server_sock, client_args);
+        if (use_ssl) {
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+        }
+        pthread_exit(NULL);
+    }
     
-    //relay web server response to  client
-    relay_stream(web_server_sock,client_sock);
+    // Relay web server response to client
+    if (use_ssl) {
+        char relay_buffer[BUFFER_SIZE];
+        int relay_bytes;
+        while ((relay_bytes = recv(web_server_sock, relay_buffer, sizeof(relay_buffer), 0)) > 0) {
+            SSL_write(ssl, relay_buffer, relay_bytes);
+        }
+    } else {
+        char relay_buffer[BUFFER_SIZE];
+        int relay_bytes;
+        while ((relay_bytes = recv(web_server_sock, relay_buffer, sizeof(relay_buffer), 0)) > 0) {
+            send(client_sock, relay_buffer, relay_bytes, 0);
+        }
+    }
 
     
     log_debug("handle_client_thread : closing connection for thread %lu\n", thread_id);
-    cleanup_client_session(client_sock, web_server_sock, client_args);
-    log_debug("handle_client_thread : thread %d exiting\n", thread_id);
     log_event_json(&event);
     free(event.request_id);
-    SSL_shutdown(ssl);
-    SSL_free(ssl);
+    cleanup_client_session(client_sock, web_server_sock, client_args);
+    
+
+    
     pthread_exit(NULL);
 }
 
