@@ -1,0 +1,66 @@
+@startuml
+title WAF - Sequence de traitement d'une requete
+
+autonumber
+actor Client
+participant "main.c" as Main
+participant "proxy.c" as Proxy
+participant "client_handler.c" as Handler
+participant "request_parser.c" as Parser
+participant "firewall.c" as Firewall
+participant "backend_connection.c" as BackendConn
+participant "Backend Web Server" as Backend
+participant "internal_log.c" as Log
+
+Client -> Main : Demarre WAF avec un port
+Main -> Firewall : load_rules(DEFAULT_RULES_CONF_PATH)
+Firewall -> Firewall : strip_comments()
+Firewall -> Firewall : parse JSON rules
+Firewall -> Firewall : build rules database
+Main -> Proxy : start_proxy(port)
+
+Proxy -> Proxy : initSSLContext()
+Proxy -> Proxy : loadCertificates()
+loop pour chaque connexion entrante
+  Proxy -> Client : accept()
+  Proxy -> Handler : pthread_create(handle_client_thread)
+  Handler -> Handler : detecter TLS ou HTTP
+  alt connexion TLS
+    Handler -> Handler : SSL_accept()
+    Handler -> Handler : SSL_read()
+  else connexion HTTP
+    Handler -> Handler : recv()
+  end
+  Handler -> Parser : parse_request(method, target, headers)
+  alt requete malformee
+    Parser --> Handler : erreur de parsing
+    Handler -> Client : 400 Bad Request
+    Handler -> Log : log_event_json()
+  else requete valide
+    Parser --> Handler : Request
+    Handler -> BackendConn : initialize_server_web_connection()
+    alt backend indisponible
+      Handler -> Client : 503 Service Unavailable
+      Handler -> Log : log_event_json()
+    else backend disponible
+      Handler -> Firewall : extract_security_context()
+      Handler -> Firewall : perform_waf_analysis(req, event)
+      Firewall -> Firewall : url_decode_inplace()
+      Firewall -> Firewall : inspect URI / query / host / user-agent
+      alt requete bloquee
+        Firewall --> Handler : BLOCK
+        Handler -> Client : 403 Forbidden
+        Handler -> Log : log_event_json()
+      else requete autorisee
+        Firewall --> Handler : ALLOW
+        Handler -> Backend : send(request)
+        Backend --> Handler : response
+        Handler -> Client : relai de la reponse
+        Handler -> Log : log_event_json()
+      end
+    end
+  end
+  Handler -> Handler : cleanup_client_session()
+end
+
+@enduml

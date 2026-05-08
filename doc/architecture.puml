@@ -1,0 +1,68 @@
+@startuml
+title WAF - Architecture du projet
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+actor Client
+cloud "Backend Web Server\n127.0.0.1:80" as Backend
+
+package "WAF" {
+  component "main.c\nBootstrap" as Main
+  component "proxy.c\nSocket listener + TLS context" as Proxy
+  component "client_handler.c\nPer-connection worker" as Handler
+  component "request_parser.c\nHTTP parser" as Parser
+  component "firewall.c\nRule engine + scoring\nURL decode + regex/string rules" as Firewall
+  component "backend_connection.c\nUpstream connection" as BackendConn
+  component "internal_log.c\nJSON event logging\nrequest_id + timestamp" as Log
+
+  component "config.h\nCompile-time settings" as Config
+  component "rules.conf\nJSON rule set" as Rules
+  component "OpenSSL" as OpenSSL
+  component "cJSON" as CJSON
+  component "log.c" as LogLib
+  component "pthread" as PThread
+  component "regex.h" as Regex
+}
+
+Client --> Proxy : TCP / TLS / HTTP
+Main --> Firewall : load_rules(rules.conf)
+Main --> Proxy : start_proxy(port)
+Proxy --> Config
+Proxy --> OpenSSL
+Proxy --> Handler : pthread_create()
+Handler --> OpenSSL
+Handler --> Parser : parse_request()
+Handler --> BackendConn : initialize_server_web_connection()
+Handler --> Firewall : extract context + perform_waf_analysis()
+Handler --> Log : log_event_json()
+Firewall --> Rules : load_rules()
+Firewall --> CJSON
+Firewall --> Regex
+Firewall --> LogLib
+Log --> CJSON
+Log --> LogLib
+Handler --> PThread
+Proxy --> PThread
+BackendConn --> Backend
+
+Parser ..> Firewall : Request -> RequestInfo
+Firewall ..> Log : WafEvent -> JSON
+Handler ..> Proxy : shared SSL_CTX
+
+note right of Firewall
+  Charge les regles au demarrage,
+  decode les donnees inspectees,
+  applique un score d'anomalie,
+  puis decide BLOCK ou ALLOW.
+end note
+
+note bottom of Handler
+  Un thread est cree par client.
+  Le handler detecte TLS ou HTTP,
+  orchestre la validation et relaie
+  la reponse vers le client.
+end note
+
+@enduml
