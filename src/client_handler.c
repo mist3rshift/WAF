@@ -107,7 +107,8 @@ void* handle_client_thread(void *args) {
 
     get_timestamp(event.timestamp);
     event.request_id = get_unique_id();
-    event.threshold = 5;
+    event.threshold = THRESHOLD;
+    inet_ntop(AF_INET, &client_addr.sin_addr, event.client_ip, sizeof(event.client_ip));
 
     // 3. Connection to web server (Upstream)
     web_server_sock = initialize_server_web_connection();
@@ -173,7 +174,7 @@ void* handle_client_thread(void *args) {
         }
     }
 
-    
+    event.bytes_sent = bytes_read;
     log_debug("handle_client_thread : closing connection for thread %lu\n", thread_id);
     log_event_json(&event);
     free(event.request_id);

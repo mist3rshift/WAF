@@ -51,6 +51,77 @@ void create_test_rules_file(const char *filename) {
 }
 
 // ============================================================================
+// HELPER: Create regex rules file from config/rules.conf
+// ============================================================================
+
+void create_regex_rules_file(const char *filename) {
+    FILE *f = fopen(filename, "w");
+    if (!f) return;
+    
+    fprintf(f, "[\n");
+    
+    /* SQLi avancé — obfuscation et bypass de filtre */
+    fprintf(f, "  { \"id\": \"7001\", \"type\": 7, \"name\": \"Regex SQLi: OR/AND bypass with spaces/comments\", \"pattern\": \"(?i)(or|and)[\\\\s\\\\t/*]+[\\\\w'\\\\\\\"(]\", \"score\": 4 },\n");
+    fprintf(f, "  { \"id\": \"7002\", \"type\": 7, \"name\": \"Regex SQLi: Union with optional whitespace\", \"pattern\": \"(?i)union[\\\\s/*]+select\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7003\", \"type\": 7, \"name\": \"Regex SQLi: Inline comment obfuscation\", \"pattern\": \"/\\\\*[^*]*\\\\*/\", \"score\": 2 },\n");
+    fprintf(f, "  { \"id\": \"7004\", \"type\": 7, \"name\": \"Regex SQLi: Tautology variants\", \"pattern\": \"(?i)'\\\\s*(or|and)\\\\s*'[^']*'\\\\s*=\\\\s*'\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7005\", \"type\": 7, \"name\": \"Regex SQLi: Stacked queries\", \"pattern\": \";\\\\s*(select|insert|update|delete|drop|alter)\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7006\", \"type\": 7, \"name\": \"Regex SQLi: URL-encoded quote\", \"pattern\": \"%%27\", \"score\": 3 },\n");
+    fprintf(f, "  { \"id\": \"7007\", \"type\": 7, \"name\": \"Regex SQLi: Double URL-encoded quote\", \"pattern\": \"%%2527\", \"score\": 4 },\n");
+    fprintf(f, "  { \"id\": \"7008\", \"type\": 7, \"name\": \"Regex SQLi: Null byte injection\", \"pattern\": \"%%00\", \"score\": 3 },\n");
+    
+    /* XSS avancé — bypass d encodage et événements dynamiques */
+    fprintf(f, "  { \"id\": \"7009\", \"type\": 7, \"name\": \"Regex XSS: Script tag with attributes\", \"pattern\": \"(?i)<script[^>]*>\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7010\", \"type\": 7, \"name\": \"Regex XSS: On* event handlers\", \"pattern\": \"(?i)\\\\bon\\\\w+\\\\s*=\", \"score\": 4 },\n");
+    fprintf(f, "  { \"id\": \"7011\", \"type\": 7, \"name\": \"Regex XSS: Javascript URI variants\", \"pattern\": \"(?i)j[\\\\s]*a[\\\\s]*v[\\\\s]*a[\\\\s]*s[\\\\s]*c[\\\\s]*r[\\\\s]*i[\\\\s]*p[\\\\s]*t[\\\\s]*:\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7012\", \"type\": 7, \"name\": \"Regex XSS: HTML entity encoded script\", \"pattern\": \"(?i)&#x?[0-9a-f]+;\", \"score\": 2 },\n");
+    fprintf(f, "  { \"id\": \"7013\", \"type\": 7, \"name\": \"Regex XSS: URL-encoded XSS\", \"pattern\": \"(?i)%%3c%%73%%63%%72%%69%%70%%74\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7014\", \"type\": 7, \"name\": \"Regex XSS: DOM sink innerHTML\", \"pattern\": \"(?i)\\\\.innerHTML\\\\s*=\", \"score\": 4 },\n");
+    fprintf(f, "  { \"id\": \"7015\", \"type\": 7, \"name\": \"Regex XSS: DOM sink document.write\", \"pattern\": \"(?i)document\\\\.write\\\\s*\\\\(\", \"score\": 4 },\n");
+    
+    /* Path Traversal — encodages alternatifs */
+    fprintf(f, "  { \"id\": \"7016\", \"type\": 7, \"name\": \"Regex Path: URL-encoded traversal\", \"pattern\": \"(\\\\.\\\\.|%%2e%%2e|%%252e%%252e)[/\\\\\\\\]\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7017\", \"type\": 7, \"name\": \"Regex Path: Backslash traversal (Windows)\", \"pattern\": \"(\\\\.\\\\.|%%2e%%2e)\\\\\\\\\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7018\", \"type\": 7, \"name\": \"Regex Path: Null byte path bypass\", \"pattern\": \"\\\\.php%%00\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7019\", \"type\": 7, \"name\": \"Regex Path: Repeated slash bypass\", \"pattern\": \"/{2,}\", \"score\": 2 },\n");
+    fprintf(f, "  { \"id\": \"7020\", \"type\": 7, \"name\": \"Regex Path: Absolute path in param\", \"pattern\": \"(?i)(file|php|expect|zip|data)://\", \"score\": 5 },\n");
+    
+    /* RCE — injection shell avancée */
+    fprintf(f, "  { \"id\": \"7021\", \"type\": 7, \"name\": \"Regex RCE: Pipe to shell\", \"pattern\": \"[|&;`$]\\\\s*(bash|sh|cmd|powershell)\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7022\", \"type\": 7, \"name\": \"Regex RCE: Command substitution\", \"pattern\": \"\\\\$\\\\([^)]+\\\\)\", \"score\": 4 },\n");
+    fprintf(f, "  { \"id\": \"7023\", \"type\": 7, \"name\": \"Regex RCE: Reverse shell pattern\", \"pattern\": \"(?i)(bash|nc|python|perl|ruby).*[0-9]+\\\\.[0-9]+\\\\.[0-9]+\\\\.[0-9]+.*[0-9]{2,5}\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7024\", \"type\": 7, \"name\": \"Regex RCE: IFS separator bypass\", \"pattern\": \"\\\\$IFS\", \"score\": 4 },\n");
+    fprintf(f, "  { \"id\": \"7025\", \"type\": 7, \"name\": \"Regex RCE: Encoded pipe char\", \"pattern\": \"%%7c\", \"score\": 2 },\n");
+    
+    /* SSRF */
+    fprintf(f, "  { \"id\": \"7026\", \"type\": 7, \"name\": \"Regex SSRF: Internal IP range 10.x\", \"pattern\": \"(?i)(https?|ftp)://10\\\\.[0-9]{1,3}\\\\.\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7027\", \"type\": 7, \"name\": \"Regex SSRF: Internal IP range 192.168.x\", \"pattern\": \"(?i)(https?|ftp)://192\\\\.168\\\\.\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7028\", \"type\": 7, \"name\": \"Regex SSRF: Localhost variants\", \"pattern\": \"(?i)(https?|ftp)://(localhost|127\\\\.0\\\\.0\\\\.1|0\\\\.0\\\\.0\\\\.0|::1)\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7029\", \"type\": 7, \"name\": \"Regex SSRF: Cloud metadata AWS\", \"pattern\": \"169\\\\.254\\\\.169\\\\.254\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7030\", \"type\": 7, \"name\": \"Regex SSRF: Cloud metadata GCP/Azure\", \"pattern\": \"metadata\\\\.google\\\\.internal|metadata\\\\.azure\\\\.com\", \"score\": 5 },\n");
+    
+    /* Open Redirect */
+    fprintf(f, "  { \"id\": \"7031\", \"type\": 7, \"name\": \"Regex Redirect: External URL in redirect param\", \"pattern\": \"(?i)(redirect|url|next|return|goto|dest)=https?://(?![a-z0-9.-]*yourdomain\\\\.com)\", \"score\": 4 },\n");
+    fprintf(f, "  { \"id\": \"7032\", \"type\": 7, \"name\": \"Regex Redirect: Protocol-relative URL\", \"pattern\": \"(?i)(redirect|url|next|return)=//[a-z0-9]\", \"score\": 4 },\n");
+    
+    /* XXE */
+    fprintf(f, "  { \"id\": \"7033\", \"type\": 7, \"name\": \"Regex XXE: DOCTYPE declaration\", \"pattern\": \"(?i)<!doctype[^>]*\\\\[\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7034\", \"type\": 7, \"name\": \"Regex XXE: ENTITY keyword\", \"pattern\": \"(?i)<!entity\\\\s+\", \"score\": 5 },\n");
+    fprintf(f, "  { \"id\": \"7035\", \"type\": 7, \"name\": \"Regex XXE: SYSTEM identifier\", \"pattern\": \"(?i)system\\\\s+['\\\"]\", \"score\": 4 },\n");
+    
+    /* SSTI */
+    fprintf(f, "  { \"id\": \"7036\", \"type\": 7, \"name\": \"Regex SSTI: Jinja2/Twig expression\", \"pattern\": \"\\\\{\\\\{[^}]+\\\\}\\\\}\", \"score\": 4 },\n");
+    fprintf(f, "  { \"id\": \"7037\", \"type\": 7, \"name\": \"Regex SSTI: Server template injection\", \"pattern\": \"(?i)\\\\{%%[^%%]*%%\\\\}\", \"score\": 4 },\n");
+    
+    /* NoSQL/LDAP Injection */
+    fprintf(f, "  { \"id\": \"7038\", \"type\": 7, \"name\": \"Regex NoSQL: MongoDB operator injection\", \"pattern\": \"(?i)\\\\$[a-z]+\", \"score\": 3 },\n");
+    fprintf(f, "  { \"id\": \"7039\", \"type\": 7, \"name\": \"Regex LDAP: Filter injection\", \"pattern\": \"(?i)[*()&|]\", \"score\": 2 }\n");
+    
+    fprintf(f, "]\n");
+    fclose(f);
+}
+
+// ============================================================================
 // RULE LOADING TESTS
 // ============================================================================
 
@@ -882,6 +953,365 @@ int main(void) {
     if (test_perform_waf_analysis_path_traversal() == 0) tests_passed++;
     tests_run++;
     
+    printf("\n=== REGEX RULES TESTS (Category 7) ===\n");
+    
+    // Load regex rules
+    create_regex_rules_file("/tmp/regex_rules.conf");
+    load_rules("/tmp/regex_rules.conf");
+    
+    // 7001: OR/AND bypass with spaces/comments
+    WafEvent event_7001;
+    memset(&event_7001, 0, sizeof(WafEvent));
+    event_7001.threshold = 10;
+    inspect_data("id OR  /* comment */ 1", "QUERY_STRING", &event_7001);
+    if (event_7001.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7001 (OR/AND bypass): %s\n", event_7001.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7002: Union with optional whitespace
+    WafEvent event_7002;
+    memset(&event_7002, 0, sizeof(WafEvent));
+    event_7002.threshold = 10;
+    inspect_data("union  /**/  select", "QUERY_STRING", &event_7002);
+    if (event_7002.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7002 (Union whitespace): %s\n", event_7002.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7003: Inline comment obfuscation
+    WafEvent event_7003;
+    memset(&event_7003, 0, sizeof(WafEvent));
+    event_7003.threshold = 10;
+    inspect_data("select /*+ */ * from users", "QUERY_STRING", &event_7003);
+    if (event_7003.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7003 (Inline comments): %s\n", event_7003.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7004: Tautology variants
+    WafEvent event_7004;
+    memset(&event_7004, 0, sizeof(WafEvent));
+    event_7004.threshold = 10;
+    inspect_data("' or '1'='1", "QUERY_STRING", &event_7004);
+    if (event_7004.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7004 (Tautology): %s\n", event_7004.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7005: Stacked queries
+    WafEvent event_7005;
+    memset(&event_7005, 0, sizeof(WafEvent));
+    event_7005.threshold = 10;
+    inspect_data("select 1; DROP TABLE users", "QUERY_STRING", &event_7005);
+    if (event_7005.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7005 (Stacked queries): %s\n", event_7005.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7006: URL-encoded quote
+    WafEvent event_7006;
+    memset(&event_7006, 0, sizeof(WafEvent));
+    event_7006.threshold = 10;
+    inspect_data("id=%27", "QUERY_STRING", &event_7006);
+    if (event_7006.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7006 (URL-encoded quote): %s\n", event_7006.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7007: Double URL-encoded quote
+    WafEvent event_7007;
+    memset(&event_7007, 0, sizeof(WafEvent));
+    event_7007.threshold = 10;
+    inspect_data("id=%2527", "QUERY_STRING", &event_7007);
+    if (event_7007.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7007 (Double URL-encoded): %s\n", event_7007.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7008: Null byte injection
+    WafEvent event_7008;
+    memset(&event_7008, 0, sizeof(WafEvent));
+    event_7008.threshold = 10;
+    inspect_data("file%00", "QUERY_STRING", &event_7008);
+    if (event_7008.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7008 (Null byte): %s\n", event_7008.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7009: Script tag with attributes
+    WafEvent event_7009;
+    memset(&event_7009, 0, sizeof(WafEvent));
+    event_7009.threshold = 10;
+    inspect_data("<script src='evil.js'>", "URI", &event_7009);
+    if (event_7009.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7009 (Script tag): %s\n", event_7009.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7010: On* event handlers
+    WafEvent event_7010;
+    memset(&event_7010, 0, sizeof(WafEvent));
+    event_7010.threshold = 10;
+    inspect_data("onclick=alert(1)", "QUERY_STRING", &event_7010);
+    if (event_7010.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7010 (Event handlers): %s\n", event_7010.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7011: Javascript URI variants
+    WafEvent event_7011;
+    memset(&event_7011, 0, sizeof(WafEvent));
+    event_7011.threshold = 10;
+    inspect_data("j a v a s c r i p t:", "QUERY_STRING", &event_7011);
+    if (event_7011.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7011 (Javascript URI): %s\n", event_7011.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7012: HTML entity encoded script
+    WafEvent event_7012;
+    memset(&event_7012, 0, sizeof(WafEvent));
+    event_7012.threshold = 10;
+    inspect_data("&#97;&#108;&#101;", "QUERY_STRING", &event_7012);
+    if (event_7012.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7012 (HTML entities): %s\n", event_7012.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7013: URL-encoded XSS
+    WafEvent event_7013;
+    memset(&event_7013, 0, sizeof(WafEvent));
+    event_7013.threshold = 10;
+    inspect_data("%3c%73%63%72%69%70%74", "QUERY_STRING", &event_7013);
+    if (event_7013.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7013 (URL-encoded XSS): %s\n", event_7013.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7014: DOM sink innerHTML
+    WafEvent event_7014;
+    memset(&event_7014, 0, sizeof(WafEvent));
+    event_7014.threshold = 10;
+    inspect_data(".innerHTML = x", "QUERY_STRING", &event_7014);
+    if (event_7014.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7014 (innerHTML): %s\n", event_7014.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7015: DOM sink document.write
+    WafEvent event_7015;
+    memset(&event_7015, 0, sizeof(WafEvent));
+    event_7015.threshold = 10;
+    inspect_data("document.write(", "QUERY_STRING", &event_7015);
+    if (event_7015.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7015 (document.write): %s\n", event_7015.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7016: URL-encoded traversal
+    WafEvent event_7016;
+    memset(&event_7016, 0, sizeof(WafEvent));
+    event_7016.threshold = 10;
+    inspect_data("%2e%2e/", "URI", &event_7016);
+    if (event_7016.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7016 (URL-encoded traversal): %s\n", event_7016.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7017: Backslash traversal (Windows)
+    WafEvent event_7017;
+    memset(&event_7017, 0, sizeof(WafEvent));
+    event_7017.threshold = 10;
+    inspect_data("..\\\\", "URI", &event_7017);
+    if (event_7017.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7017 (Backslash traversal): %s\n", event_7017.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7018: Null byte path bypass
+    WafEvent event_7018;
+    memset(&event_7018, 0, sizeof(WafEvent));
+    event_7018.threshold = 10;
+    inspect_data(".php%00", "URI", &event_7018);
+    if (event_7018.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7018 (Null byte path): %s\n", event_7018.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7019: Repeated slash bypass
+    WafEvent event_7019;
+    memset(&event_7019, 0, sizeof(WafEvent));
+    event_7019.threshold = 10;
+    inspect_data("///etc///passwd", "URI", &event_7019);
+    if (event_7019.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7019 (Repeated slashes): %s\n", event_7019.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7020: Absolute path in param
+    WafEvent event_7020;
+    memset(&event_7020, 0, sizeof(WafEvent));
+    event_7020.threshold = 10;
+    inspect_data("file://etc/passwd", "QUERY_STRING", &event_7020);
+    if (event_7020.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7020 (Protocol schemes): %s\n", event_7020.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7021: Pipe to shell
+    WafEvent event_7021;
+    memset(&event_7021, 0, sizeof(WafEvent));
+    event_7021.threshold = 10;
+    inspect_data("| bash", "QUERY_STRING", &event_7021);
+    if (event_7021.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7021 (Pipe to shell): %s\n", event_7021.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7022: Command substitution
+    WafEvent event_7022;
+    memset(&event_7022, 0, sizeof(WafEvent));
+    event_7022.threshold = 10;
+    inspect_data("$(whoami)", "QUERY_STRING", &event_7022);
+    if (event_7022.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7022 (Command substitution): %s\n", event_7022.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7023: Reverse shell pattern
+    WafEvent event_7023;
+    memset(&event_7023, 0, sizeof(WafEvent));
+    event_7023.threshold = 10;
+    inspect_data("bash 192.168.1.1 4444", "QUERY_STRING", &event_7023);
+    if (event_7023.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7023 (Reverse shell): %s\n", event_7023.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7024: IFS separator bypass
+    WafEvent event_7024;
+    memset(&event_7024, 0, sizeof(WafEvent));
+    event_7024.threshold = 10;
+    inspect_data("$IFS", "QUERY_STRING", &event_7024);
+    if (event_7024.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7024 (IFS separator): %s\n", event_7024.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7025: Encoded pipe char
+    WafEvent event_7025;
+    memset(&event_7025, 0, sizeof(WafEvent));
+    event_7025.threshold = 10;
+    inspect_data("%7c", "QUERY_STRING", &event_7025);
+    if (event_7025.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7025 (Encoded pipe): %s\n", event_7025.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7026: Internal IP range 10.x
+    WafEvent event_7026;
+    memset(&event_7026, 0, sizeof(WafEvent));
+    event_7026.threshold = 10;
+    inspect_data("http://10.0.0.1", "QUERY_STRING", &event_7026);
+    if (event_7026.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7026 (SSRF 10.x): %s\n", event_7026.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7027: Internal IP range 192.168.x
+    WafEvent event_7027;
+    memset(&event_7027, 0, sizeof(WafEvent));
+    event_7027.threshold = 10;
+    inspect_data("https://192.168.1.1", "QUERY_STRING", &event_7027);
+    if (event_7027.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7027 (SSRF 192.168): %s\n", event_7027.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7028: Localhost variants
+    WafEvent event_7028;
+    memset(&event_7028, 0, sizeof(WafEvent));
+    event_7028.threshold = 10;
+    inspect_data("http://127.0.0.1", "QUERY_STRING", &event_7028);
+    if (event_7028.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7028 (SSRF localhost): %s\n", event_7028.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7029: Cloud metadata AWS
+    WafEvent event_7029;
+    memset(&event_7029, 0, sizeof(WafEvent));
+    event_7029.threshold = 10;
+    inspect_data("http://169.254.169.254", "QUERY_STRING", &event_7029);
+    if (event_7029.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7029 (AWS metadata): %s\n", event_7029.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7030: Cloud metadata GCP/Azure
+    WafEvent event_7030;
+    memset(&event_7030, 0, sizeof(WafEvent));
+    event_7030.threshold = 10;
+    inspect_data("metadata.google.internal", "QUERY_STRING", &event_7030);
+    if (event_7030.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7030 (GCP/Azure metadata): %s\n", event_7030.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7031: External URL in redirect param
+    WafEvent event_7031;
+    memset(&event_7031, 0, sizeof(WafEvent));
+    event_7031.threshold = 10;
+    inspect_data("redirect=https://evil.com", "QUERY_STRING", &event_7031);
+    if (event_7031.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7031 (Open redirect): %s\n", event_7031.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7032: Protocol-relative URL
+    WafEvent event_7032;
+    memset(&event_7032, 0, sizeof(WafEvent));
+    event_7032.threshold = 10;
+    inspect_data("next=//evil.com", "QUERY_STRING", &event_7032);
+    if (event_7032.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7032 (Protocol-relative): %s\n", event_7032.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7033: DOCTYPE declaration
+    WafEvent event_7033;
+    memset(&event_7033, 0, sizeof(WafEvent));
+    event_7033.threshold = 10;
+    inspect_data("<!DOCTYPE [", "QUERY_STRING", &event_7033);
+    if (event_7033.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7033 (XXE DOCTYPE): %s\n", event_7033.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7034: ENTITY keyword
+    WafEvent event_7034;
+    memset(&event_7034, 0, sizeof(WafEvent));
+    event_7034.threshold = 10;
+    inspect_data("<!ENTITY ", "QUERY_STRING", &event_7034);
+    if (event_7034.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7034 (XXE ENTITY): %s\n", event_7034.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7035: SYSTEM identifier
+    WafEvent event_7035;
+    memset(&event_7035, 0, sizeof(WafEvent));
+    event_7035.threshold = 10;
+    inspect_data("SYSTEM \"file.dtd\"", "QUERY_STRING", &event_7035);
+    if (event_7035.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7035 (XXE SYSTEM): %s\n", event_7035.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7036: Jinja2/Twig expression
+    WafEvent event_7036;
+    memset(&event_7036, 0, sizeof(WafEvent));
+    event_7036.threshold = 10;
+    inspect_data("{{7*7}}", "QUERY_STRING", &event_7036);
+    if (event_7036.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7036 (SSTI Jinja2): %s\n", event_7036.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7037: Server template injection
+    WafEvent event_7037;
+    memset(&event_7037, 0, sizeof(WafEvent));
+    event_7037.threshold = 10;
+    inspect_data("{%if x%}", "QUERY_STRING", &event_7037);
+    if (event_7037.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7037 (SSTI template): %s\n", event_7037.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7038: MongoDB operator injection
+    WafEvent event_7038;
+    memset(&event_7038, 0, sizeof(WafEvent));
+    event_7038.threshold = 10;
+    inspect_data("$gt", "QUERY_STRING", &event_7038);
+    if (event_7038.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7038 (NoSQL $operator): %s\n", event_7038.anomaly_score > 0 ? "✓" : "✗");
+    
+    // 7039: LDAP Filter injection
+    WafEvent event_7039;
+    memset(&event_7039, 0, sizeof(WafEvent));
+    event_7039.threshold = 10;
+    inspect_data("*)(uid=*", "QUERY_STRING", &event_7039);
+    if (event_7039.anomaly_score > 0) tests_passed++;
+    tests_run++;
+    printf("  7039 (LDAP filter): %s\n", event_7039.anomaly_score > 0 ? "✓" : "✗");
+    
+    free_rules();
+
     printf("\n=== BORDER CASES / EDGE CASES ===\n");
     if (test_large_query_string() == 0) tests_passed++;
     tests_run++;

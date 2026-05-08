@@ -5,9 +5,10 @@
 #include <ctype.h>
 #include <regex.h>
 
+#include "../lib/cJSON.h"
+#include "../lib/log.h"
 #include "../inc/request_parser.h"
 #include "../inc/firewall.h"
-#include "../lib/cJSON.h"
 #include "../inc/config.h"
 #include "../inc/internal_log.h"
 
@@ -22,9 +23,9 @@ static int rules_capacity = 0;
  * @brief Get severity string based on score
  */
 const char* get_severity_str(int score) {
-    if (score >= 5) return "CRITICAL";
-    if (score >= 4) return "HIGH";
-    if (score >= 2) return "MEDIUM";
+    if (score >= 20) return "CRITICAL";
+    if (score >= 15) return "HIGH";
+    if (score >= 10) return "MEDIUM";
     return "LOW";
 }
 
@@ -53,16 +54,21 @@ void strip_comments(char* str) {
         }
     }
 }
+
 /**
  * @brief Loads WAF rules from a JSON configuration file.
- * @param rules_config_path Path to the .conf or .json file.
- * @return Number of rules loaded, or -1 on failure.
  */
 int load_rules(char* rules_config_path) {
-    if (rules_config_path == NULL) return -1;
+    if (rules_config_path == NULL) {
+        log_error("load_rules: rules_config_path is NULL");
+        return -1;
+    }
 
     FILE* file = fopen(rules_config_path, "r");
-    if (file == NULL) return -1;
+    if (file == NULL) {
+        log_error("load_rules: Could not open file '%s'. Check if the path is correct.", rules_config_path);
+        return -1;
+    }
 
     // Determine file size
     fseek(file, 0, SEEK_END);
@@ -70,6 +76,7 @@ int load_rules(char* rules_config_path) {
     fseek(file, 0, SEEK_SET);
 
     if (file_size <= 0) {
+        log_error("load_rules: File '%s' is empty or invalid (size: %ld)", rules_config_path, file_size);
         fclose(file);
         return -1;
     }
@@ -77,6 +84,7 @@ int load_rules(char* rules_config_path) {
     // Allocate buffer and read content
     char* buffer = (char*)malloc(file_size + 1);
     if (buffer == NULL) {
+        log_error("load_rules: Memory allocation failed for file buffer (%ld bytes)", file_size);
         fclose(file);
         return -1;
     }
@@ -90,9 +98,17 @@ int load_rules(char* rules_config_path) {
 
     // --- STEP 2: Parse cleaned JSON ---
     cJSON* json = cJSON_Parse(buffer);
-    free(buffer); // Text buffer no longer needed after parsing
-
-    if (json == NULL) return -1;
+    if (json == NULL) {
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != NULL) {
+            log_error("load_rules: JSON Parse Error before: %s", error_ptr);
+        } else {
+            log_error("load_rules: JSON Parse failed (Check for syntax errors like missing commas)");
+        }
+        free(buffer);
+        return -1;
+    }
+    free(buffer); 
 
     // --- STEP 3: Reset local database ---
     if (rules_db != NULL) {
@@ -105,6 +121,7 @@ int load_rules(char* rules_config_path) {
     rules_capacity = INITIAL_CAPACITY;
     rules_db = (rule*)malloc(rules_capacity * sizeof(rule));
     if (rules_db == NULL) {
+        log_error("load_rules: Memory allocation failed for rules_db");
         cJSON_Delete(json);
         return -1;
     }
@@ -129,30 +146,34 @@ int load_rules(char* rules_config_path) {
             if (rules_count >= rules_capacity) {
                 int new_capacity = rules_capacity + 16; 
                 rule* temp = (rule*)realloc(rules_db, new_capacity * sizeof(rule));
-                if (temp == NULL) break; 
+                if (temp == NULL) {
+                    log_error("load_rules: Realloc failed at rule index %d", rules_count);
+                    break; 
+                }
                 rules_db = temp;
                 rules_capacity = new_capacity;
             }
+            
+            log_debug("Loading rule: ID=%s, Pattern=%s, Score=%d", 
+                      id_item->valuestring, pattern_item->valuestring, score_item->valueint);
 
-            // Safe copy to memory
             strncpy(rules_db[rules_count].id, id_item->valuestring, sizeof(rules_db[rules_count].id) - 1);
             rules_db[rules_count].id[sizeof(rules_db[rules_count].id) - 1] = '\0';
-
             rules_db[rules_count].type = type_item->valueint;
-
             strncpy(rules_db[rules_count].pattern, pattern_item->valuestring, sizeof(rules_db[rules_count].pattern) - 1);
             rules_db[rules_count].pattern[sizeof(rules_db[rules_count].pattern) - 1] = '\0';
-
             strncpy(rules_db[rules_count].name, name_item->valuestring, sizeof(rules_db[rules_count].name) - 1);
             rules_db[rules_count].name[sizeof(rules_db[rules_count].name) - 1] = '\0';
-
             rules_db[rules_count].score = score_item->valueint;
 
             rules_count++;
+        } else {
+            log_warn("load_rules: Skipping invalid rule at index %d (missing fields or wrong types)", i);
         }
     }
 
     cJSON_Delete(json);
+    log_info("load_rules: Successfully loaded %d rules from '%s'", rules_count, rules_config_path);
     return rules_count;
 }
 
@@ -303,65 +324,64 @@ void extract_security_context(const Request *raw_req, RequestInfo *waf_req) {
 
 
 /**
- * @brief Creates a lowercase copy of the source string for case-insensitive matching.
+ * @brief Prepares a string for analysis by copying and decoding it.
+ * Lowercasing is no longer handled here since we use strcasestr for matching.
  */
 void normalize_target(char *dest, const char *src, size_t max_len) {
     if (!src || !dest) return;
-    int len = 0;
-    for (size_t i = 0; i < max_len - 1 && src[i]; i++) {
-        dest[i] = (char)tolower((unsigned char)src[i]);
-        len++;
-    }
-    dest[len] = '\0';
+
+    // 1. Safe copy from source to destination
+    strncpy(dest, src, max_len - 1);
+    dest[max_len - 1] = '\0';
+
+    // 2. Decode URL encoding (%xx -> char) 
+    // This allows the WAF to "see" the actual attack hidden in hex
+    url_decode_inplace(dest);
 }
 
 /**
- * @brief Scans a specific string against the rules database.
- * @param data The string to inspect (e.g., query string).
- * @param target_name The name of the field being inspected (for logging).
- * @param event Pointer to the current WafEvent to update.
+ * @brief Scans a specific string against the rules database using case-insensitive matching.
  */
 void inspect_data(const char *data, const char *target_name, WafEvent *event) {
     if (!data || strlen(data) == 0) return;
 
-    char clean_data[1024];
+    // Fixed-size buffer for normalized (decoded) data
+    char clean_data[2048]; 
     normalize_target(clean_data, data, sizeof(clean_data));
 
     for (int i = 0; i < get_rules_count(); i++) {
         rule *r = get_rule(i);
-
         bool matched = false;
-        regex_t compiled;
-        
-        if (r->type == 7) {
-            if (regcomp(&compiled, r->pattern, REG_EXTENDED | REG_ICASE) != 0) {
-                // pattern invalide, on skip cette règle
-                continue;
+
+        // REGEX Detection (Type 7)
+        if (r->type == THREAT_REGEX) {
+            regex_t compiled;
+            if (regcomp(&compiled, r->pattern, REG_EXTENDED | REG_ICASE) == 0) {
+                matched = (regexec(&compiled, clean_data, 0, NULL, 0) == 0);
+                regfree(&compiled);
             }
-            matched = (regexec(&compiled, clean_data, 0, NULL, 0) == 0);
-            regfree(&compiled);
-        }
+        } 
+        // STRING Detection using case-insensitive search
         else {
-            // Use strstr on the normalized data (case-insensitive search)
-            matched = (strstr(clean_data, r->pattern) != NULL);
+            // strcasestr finds "script" in "<SCRIPT>" or "<sCrIpT>"
+            matched = (strcasestr(clean_data, r->pattern) != NULL);
         }
         
         if (matched) {
-                event->anomaly_score += r->score;
+            event->anomaly_score += r->score;
 
-                // Update RuleMatch details if this is the first match 
-                // or if it has a higher score than the previous match recorded
-                if (strlen(event->rule.id) == 0 || r->score > event->anomaly_score - r->score) {
-                    strncpy(event->rule.id, r->id, sizeof(event->rule.id) - 1);
-                    strncpy(event->rule.message, r->name, sizeof(event->rule.message) - 1);
-                    strncpy(event->rule.severity, get_severity_str(r->score), sizeof(event->rule.severity) - 1);
-                    strncpy(event->rule.matched_data, r->pattern, sizeof(event->rule.matched_data) - 1);
-                    strncpy(event->rule.target, target_name, sizeof(event->rule.target) - 1);
-                    // Tag is derived from type (e.g., SQLI, XSS)
-                    snprintf(event->rule.tag, sizeof(event->rule.tag), "threat_type_%d", r->type);
-                }
+            // Log details if this is the first match or the most severe one
+            if (strlen(event->rule.id) == 0 || r->score > (event->anomaly_score - r->score)) {
+                strncpy(event->rule.id, r->id, sizeof(event->rule.id) - 1);
+                strncpy(event->rule.message, r->name, sizeof(event->rule.message) - 1);
+                strncpy(event->rule.matched_data, r->pattern, sizeof(event->rule.matched_data) - 1);
+                strncpy(event->rule.target, target_name, sizeof(event->rule.target) - 1);
+                snprintf(event->rule.tag, sizeof(event->rule.tag), "attack-%d", r->type);
+                
+                // Link the severity directly to the rule score
+                strncpy(event->rule.severity, get_severity_str(r->score), sizeof(event->rule.severity) - 1);
+            }
         }
-    
     }
 }
 
@@ -378,11 +398,13 @@ void inspect_data(const char *data, const char *target_name, WafEvent *event) {
  * @return 1 if the request is blocked, 0 if allowed.
  */
 int perform_waf_analysis(const Request *raw_req, WafEvent *event) {
+    log_info("perform_waf_analysis : analysis started . . . \n");
     // 1. Basic Initialization
     event->anomaly_score = 0;
     event->blocked = 0;
     event->status_code = 200; // Default to OK
     
+    memset(&event->rule, 0, sizeof(RuleMatch));
     // 2. Data Extraction & Mapping
     // We fill event->req (RequestInfo) using the data from raw_req (Request)
     // This handles pointer-to-buffer conversion and null-termination.
@@ -395,17 +417,19 @@ int perform_waf_analysis(const Request *raw_req, WafEvent *event) {
     inspect_data(event->req.query_string, "QUERY_STRING", event);
     inspect_data(event->req.user_agent, "USER_AGENT", event);
     inspect_data(event->req.host, "HOST", event);
+    if (event->anomaly_score > 0) {
+        strncpy(event->rule.severity, get_severity_str(event->anomaly_score), sizeof(event->rule.severity) - 1);
+    } else {
+        strncpy(event->rule.severity, "NORMAL", sizeof(event->rule.severity) - 1);
+    }
 
     // 4. Decision Logic
     // event->threshold should be set earlier (e.g., in handle_client)
-    if (event->anomaly_score >= event->threshold) {
+    if (event->anomaly_score >= event->threshold && BLOCK_ENABLE) {
         event->status_code = 403; // Forbidden
-        
-        // BLOCK_ENABLE is typically a macro or global config variable
-        if (BLOCK_ENABLE) {
-            event->blocked = 1;
-            return 1; // Signal the proxy to drop the connection
-        }
+        event->blocked = 1;
+        return 1;
+
     }
 
     return 0; // Allow the request to proceed to the backend

@@ -1,5 +1,6 @@
 #ifndef FIREWALL_H
 #define FIREWALL_H
+#define _GNU_SOURCE
 
 #include <stdbool.h>
 #include "request_parser.h"
@@ -11,7 +12,6 @@ typedef struct _rule {
     char pattern[128];   // pattern to seach
     char name[64];       // Nom explicite
     int score;           // score 
-    int is_regex;        // 0 pour strstr, 1 pour regexec
 } rule;
 
 typedef enum {
@@ -20,6 +20,7 @@ typedef enum {
     THREAT_XSS = 2,
     THREAT_PATH_TRAVERSAL = 3,
     THREAT_COMMAND_INJECTION = 4,
+    THREAT_REGEX = 5,
     THREAT_INVALID_METHOD = 101,
     THREAT_INVALID_HEADER = 102,
     THREAT_MALFORMED = 999
